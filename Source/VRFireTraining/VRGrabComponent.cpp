@@ -77,12 +77,9 @@ void UVRGrabComponent::SetupInputBindings()
 
     if (GrabAction)
     {
-        // Bind Grab Pressed
+        // Single binding ? toggles grab/release on each press
         EIC->BindAction(GrabAction, ETriggerEvent::Triggered,
             this, &UVRGrabComponent::OnGrabPressed);
-
-        EIC->BindAction(GrabAction, ETriggerEvent::Completed,
-            this, &UVRGrabComponent::OnGrabReleased);
 
         UE_LOG(LogTemp, Warning, TEXT("VRGrabComponent: Input bound for %s hand"),
             bIsRightHand ? TEXT("Right") : TEXT("Left"));
@@ -96,7 +93,14 @@ void UVRGrabComponent::SetupInputBindings()
 
 void UVRGrabComponent::OnGrabPressed()
 {
-    TryGrab();
+    if (bIsHolding)
+    {
+        TryRelease();
+    }
+    else
+    {
+        TryGrab();
+    }
 }
 
 void UVRGrabComponent::OnGrabReleased()
