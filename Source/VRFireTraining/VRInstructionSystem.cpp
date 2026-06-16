@@ -31,7 +31,7 @@ void AVRInstructionSystem::StartTraining()
 
     if (Instructions.Num() > 0)
     {
-        OnInstructionChanged.Broadcast(Instructions[0]);
+        OnInstructionChanged.Broadcast(Instructions[0], CurrentInstructionIndex + 1, Instructions.Num());
         UE_LOG(LogTemp, Warning, TEXT("Training Started: %s"),
             *Instructions[0]);
     }
@@ -61,6 +61,6 @@ void AVRInstructionSystem::NextInstruction()
     }
 
     FString NewInstruction = Instructions[CurrentInstructionIndex];
-    OnInstructionChanged.Broadcast(NewInstruction);
+    OnInstructionChanged.Broadcast(NewInstruction, CurrentInstructionIndex + 1, Instructions.Num());
     UE_LOG(LogTemp, Warning, TEXT("Next instruction: %s"), *NewInstruction);
 }

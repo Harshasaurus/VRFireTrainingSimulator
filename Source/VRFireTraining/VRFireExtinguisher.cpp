@@ -50,8 +50,18 @@ void AVRFireExtinguisher::Release(FVector ThrowVelocity)
     UE_LOG(LogTemp, Warning, TEXT("Extinguisher released!"));
 }
 
+void AVRFireExtinguisher::PullPin()
+{
+    if (!bIsGrabbed || bPinPulled) return;
+
+    bPinPulled = true;
+    UE_LOG(LogTemp, Warning, TEXT("Pin pulled!"));
+}
+
 void AVRFireExtinguisher::StartSpray()
 {
+    if (!bPinPulled) return;
+
     UE_LOG(LogTemp, Warning, TEXT("StartSpray called! bIsSpraying: %d"), bIsSpraying);
 
     bIsSpraying = true;

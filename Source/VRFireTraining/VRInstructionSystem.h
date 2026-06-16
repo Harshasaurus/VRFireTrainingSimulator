@@ -4,8 +4,8 @@
 #include "GameFramework/Actor.h"
 #include "VRInstructionSystem.generated.h"
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnInstructionChanged,
-    const FString&, NewInstruction);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnInstructionChanged,
+    const FString&, NewInstruction, int32, StepNumber, int32, TotalSteps);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnTrainingComplete);
 
 UCLASS()

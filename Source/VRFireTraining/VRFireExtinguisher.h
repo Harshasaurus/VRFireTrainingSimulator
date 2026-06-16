@@ -23,11 +23,18 @@ public:
     UPROPERTY(BlueprintReadOnly, Category = "Extinguisher")
     bool bIsSpraying = false;
 
-    // Called by grab component to grab
+    // Has the safety pin been pulled?
+    UPROPERTY(BlueprintReadOnly, Category = "Extinguisher")
+    bool bPinPulled = false;
+
     // Called by grab component to grab
     virtual void Grab(USceneComponent* AttachTo) override;
     // Called by grab component to release
     virtual void Release(FVector ThrowVelocity) override;
+
+    // Pull the safety pin (only works once grabbed)
+    UFUNCTION(BlueprintCallable, Category = "Extinguisher")
+    void PullPin();
 
     // Start spraying
     UFUNCTION(BlueprintCallable, Category = "Extinguisher")
