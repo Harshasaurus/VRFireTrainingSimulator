@@ -1,5 +1,4 @@
 #pragma once
-
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "VRFire.generated.h"
@@ -50,4 +49,8 @@ public:
 
 private:
     void Extinguish();
+
+    // NEW: cached reference to SimulationManager
+    class AVRSimulationManager* SimulationManager = nullptr;
+    void FindSimulationManager();
 };

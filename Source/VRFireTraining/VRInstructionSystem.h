@@ -32,6 +32,14 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Instructions")
     FString GetCurrentInstruction();
 
+    // Get current step number (1-indexed, for display)
+    UFUNCTION(BlueprintCallable, Category = "Instructions")
+    int32 GetCurrentStepNumber() const { return CurrentInstructionIndex + 1; }
+
+    // Get total number of steps
+    UFUNCTION(BlueprintCallable, Category = "Instructions")
+    int32 GetTotalSteps() const { return Instructions.Num(); }
+
     // Move to next instruction
     UFUNCTION(BlueprintCallable, Category = "Instructions")
     void NextInstruction();

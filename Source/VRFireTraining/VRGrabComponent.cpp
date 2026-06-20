@@ -134,6 +134,9 @@ void UVRGrabComponent::TryGrab()
 
     if (bIsHolding) return;
 
+    // Only left hand can grab the extinguisher
+    if (bIsRightHand) return;
+
     AVRGrabbable* Nearest = FindNearestGrabbable();
     if (Nearest && MotionControllerComponent)
     {
@@ -143,7 +146,6 @@ void UVRGrabComponent::TryGrab()
         UE_LOG(LogTemp, Warning, TEXT("Grabbed: %s"), *HeldObject->GetName());
     }
 }
-
 void UVRGrabComponent::TryRelease()
 {
     if (!bIsHolding || !HeldObject) return;

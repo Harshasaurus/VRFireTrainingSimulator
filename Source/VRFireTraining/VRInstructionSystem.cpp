@@ -5,12 +5,11 @@ AVRInstructionSystem::AVRInstructionSystem()
     PrimaryActorTick.bCanEverTick = false;
 
     // Default fire extinguisher training instructions
-    Instructions.Add(TEXT("Step 1: Locate the fire extinguisher"));
-    Instructions.Add(TEXT("Step 2: Pull the safety pin"));
-    Instructions.Add(TEXT("Step 3: Pick up the extinguisher"));
-    Instructions.Add(TEXT("Step 4: Aim the nozzle at the base of the fire"));
-    Instructions.Add(TEXT("Step 5: Squeeze the handle to spray"));
-    Instructions.Add(TEXT("Step 6: Sweep side to side until fire is out"));
+    Instructions.Add(TEXT("Step 1: Locate and grab the fire extinguisher"));
+    Instructions.Add(TEXT("Step 2: Pull the safety pin by pressing P"));
+    Instructions.Add(TEXT("Step 3: Squeeze the handle by pressing T to spray"));
+    Instructions.Add(TEXT("Step 4: Spray until the fire is totally gone"));
+    
 }
 
 void AVRInstructionSystem::BeginPlay()
@@ -55,12 +54,17 @@ void AVRInstructionSystem::NextInstruction()
     if (CurrentInstructionIndex >= Instructions.Num())
     {
         bTrainingComplete = true;
+        OnInstructionChanged.Broadcast(
+            TEXT("Training Complete! Well done!"),
+            Instructions.Num(),
+            Instructions.Num()
+        );
         OnTrainingComplete.Broadcast();
-        UE_LOG(LogTemp, Warning, TEXT("Training Complete!"));
         return;
     }
 
     FString NewInstruction = Instructions[CurrentInstructionIndex];
-    OnInstructionChanged.Broadcast(NewInstruction, CurrentInstructionIndex + 1, Instructions.Num());
+    OnInstructionChanged.Broadcast(NewInstruction,
+        CurrentInstructionIndex + 1, Instructions.Num());
     UE_LOG(LogTemp, Warning, TEXT("Next instruction: %s"), *NewInstruction);
 }
