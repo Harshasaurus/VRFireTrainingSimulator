@@ -1,16 +1,17 @@
 #include "VRSimulationManager.h"
+#include "VRFire.h"
 #include "Kismet/GameplayStatics.h"
+#include "Engine/World.h"
 
 AVRSimulationManager::AVRSimulationManager()
 {
-    PrimaryActorTick.bCanEverTick = false; // no per-frame work needed
+    PrimaryActorTick.bCanEverTick = false;
 }
 
 void AVRSimulationManager::BeginPlay()
 {
     Super::BeginPlay();
-    // Start idle — call StartSimulation() from Blueprint or level BP
-    // when you're ready to kick off the scenario
+    // Call StartSimulation() from Level Blueprint on BeginPlay
 }
 
 void AVRSimulationManager::Tick(float DeltaTime)
@@ -27,23 +28,40 @@ void AVRSimulationManager::StartSimulation()
     if (CurrentPhase != 0)
     {
         UE_LOG(LogTemp, Warning,
-            TEXT("SimulationManager: StartSimulation called but not in Idle phase. Ignoring."));
+            TEXT("SimulationManager: Already running. Ignoring StartSimulation."));
         return;
     }
 
-    FireStartTime = GetWorld()->GetTimeSeconds();
-    BuzzerPressedTime = 0.f;
-    FireExtinguishedTime = 0.f;
+    if (FireSpawnPoints.Num() == 0)
+    {
+        UE_LOG(LogTemp, Error,
+            TEXT("SimulationManager: No FireSpawnPoints assigned! Add them in the Details panel."));
+        return;
+    }
 
-    SetPhase(1); // FireActive
+    if (!FireClass)
+    {
+        UE_LOG(LogTemp, Error,
+            TEXT("SimulationManager: No FireClass assigned! Drag your BP_VRFire into the Details panel."));
+        return;
+    }
 
     UE_LOG(LogTemp, Warning,
-        TEXT("SimulationManager: Simulation started at %.2f"), FireStartTime);
+        TEXT("SimulationManager: Grace period started. Fire spawns in %.1f seconds."),
+        FireSpawnDelay);
+
+    // Start countdown — fire spawns after FireSpawnDelay seconds
+    GetWorld()->GetTimerManager().SetTimer(
+        FireSpawnTimerHandle,
+        this,
+        &AVRSimulationManager::SpawnFireAndBegin,
+        FireSpawnDelay,
+        false  // don't loop
+    );
 }
 
 void AVRSimulationManager::OnBuzzerPressed()
 {
-    // Guard: only valid during FireActive phase
     if (CurrentPhase != 1)
     {
         UE_LOG(LogTemp, Warning,
@@ -56,14 +74,11 @@ void AVRSimulationManager::OnBuzzerPressed()
 
     UE_LOG(LogTemp, Warning,
         TEXT("SimulationManager: Buzzer pressed at %.2f  (%.2f s after fire start)"),
-        BuzzerPressedTime,
-        BuzzerPressedTime - FireStartTime);
+        BuzzerPressedTime, BuzzerPressedTime - FireStartTime);
 }
 
 void AVRSimulationManager::OnAllFiresExtinguished()
 {
-    // Guard: only valid during FireActive or Alerted phase
-    // (edge case: player extinguishes before hitting buzzer — still record it)
     if (CurrentPhase != 1 && CurrentPhase != 2)
     {
         UE_LOG(LogTemp, Warning,
@@ -71,13 +86,12 @@ void AVRSimulationManager::OnAllFiresExtinguished()
         return;
     }
 
-    // If player never hit the buzzer, record buzzer time = extinguish time
-    // so alert score is 0 (worst penalty) but game still ends cleanly
+    // If buzzer was never pressed, stamp it now so score is penalised but game ends cleanly
     if (BuzzerPressedTime <= 0.f)
     {
         BuzzerPressedTime = GetWorld()->GetTimeSeconds();
         UE_LOG(LogTemp, Warning,
-            TEXT("SimulationManager: Buzzer was never pressed — marking at extinguish time."));
+            TEXT("SimulationManager: Buzzer never pressed — stamping at extinguish time."));
     }
 
     FireExtinguishedTime = GetWorld()->GetTimeSeconds();
@@ -98,11 +112,21 @@ void AVRSimulationManager::OnAllFiresExtinguished()
 
 void AVRSimulationManager::ResetSimulation()
 {
+    // Cancel spawn timer if still counting down
+    GetWorld()->GetTimerManager().ClearTimer(FireSpawnTimerHandle);
+
+    // Destroy any spawned fires
+    for (AActor* Fire : SpawnedFires)
+    {
+        if (Fire) Fire->Destroy();
+    }
+    SpawnedFires.Empty();
+
     FireStartTime = 0.f;
     BuzzerPressedTime = 0.f;
     FireExtinguishedTime = 0.f;
 
-    SetPhase(0); // Back to Idle
+    SetPhase(0);
 
     UE_LOG(LogTemp, Warning, TEXT("SimulationManager: Reset to Idle."));
 }
@@ -123,18 +147,59 @@ float AVRSimulationManager::GetElapsedSinceBuzzer() const
     return GetWorld()->GetTimeSeconds() - BuzzerPressedTime;
 }
 
+// ----------------------------------------------------------------
+// Private
+// ----------------------------------------------------------------
 
-// Private helpers
+void AVRSimulationManager::SpawnFireAndBegin()
+{
+    UWorld* World = GetWorld();
+    if (!World) return;
 
+    // Spawn a fire actor at every assigned spawn point
+    for (AActor* SpawnPoint : FireSpawnPoints)
+    {
+        if (!SpawnPoint) continue;
+
+        FActorSpawnParameters Params;
+        Params.SpawnCollisionHandlingOverride =
+            ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+        AActor* Fire = World->SpawnActor<AActor>(
+            FireClass,
+            SpawnPoint->GetActorLocation(),
+            SpawnPoint->GetActorRotation(),
+            Params
+        );
+
+        if (Fire)
+        {
+            SpawnedFires.Add(Fire);
+            UE_LOG(LogTemp, Warning,
+                TEXT("SimulationManager: Fire spawned at %s"), *SpawnPoint->GetName());
+        }
+    }
+
+    // Record fire start time and move to FireActive phase
+    FireStartTime = World->GetTimeSeconds();
+    SetPhase(1);
+
+    // Tell timer widget to appear
+    OnFireSpawned.Broadcast();
+
+    UE_LOG(LogTemp, Warning,
+        TEXT("SimulationManager: Fire is live at %.2f — simulation active!"), FireStartTime);
+}
 
 int32 AVRSimulationManager::CalculateScore(float AlertTime, float ExtinguishTime) const
 {
-    // Alert score: full marks if <= IdealAlertTime, drops linearly to 0 at 2x IdealAlertTime
-    float AlertRatio = FMath::Clamp(1.f - (AlertTime / (IdealAlertTime * 2.f)), 0.f, 1.f);
-    float ExtRatio = FMath::Clamp(1.f - (ExtinguishTime / (IdealExtinguishTime * 2.f)), 0.f, 1.f);
+    float AlertRatio = FMath::Clamp(
+        1.f - (AlertTime / (IdealAlertTime * 2.f)), 0.f, 1.f);
+    float ExtRatio = FMath::Clamp(
+        1.f - (ExtinguishTime / (IdealExtinguishTime * 2.f)), 0.f, 1.f);
 
-    float RawScore = (AlertRatio * AlertScoreWeight) + (ExtRatio * ExtinguishScoreWeight);
-    return FMath::RoundToInt(RawScore);
+    return FMath::RoundToInt(
+        (AlertRatio * AlertScoreWeight) + (ExtRatio * ExtinguishScoreWeight));
 }
 
 void AVRSimulationManager::SetPhase(int32 NewPhase)
@@ -146,8 +211,6 @@ void AVRSimulationManager::SetPhase(int32 NewPhase)
         TEXT("Idle"), TEXT("FireActive"), TEXT("Alerted"), TEXT("Complete")
     };
     if (NewPhase >= 0 && NewPhase <= 3)
-    {
         UE_LOG(LogTemp, Warning,
             TEXT("SimulationManager: Phase -> %s"), PhaseNames[NewPhase]);
-    }
 }

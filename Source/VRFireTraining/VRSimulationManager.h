@@ -3,18 +3,19 @@
 #include "GameFramework/Actor.h"
 #include "VRSimulationManager.generated.h"
 
-// Broadcast when simulation ends with final score data
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_FourParams(FOnSimulationComplete,
-    float, AlertResponseTime,       // seconds from fire start to buzzer press
-    float, ExtinguishTime,          // seconds from buzzer press to all fires out
-    float, TotalTime,               // total elapsed seconds
-    int32, FinalScore               // 0-100
+    float, AlertResponseTime,
+    float, ExtinguishTime,
+    float, TotalTime,
+    int32, FinalScore
 );
 
-// Broadcast when simulation phase changes (for HUD updates)
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnPhaseChanged,
-    int32, NewPhase                 // 0=Idle, 1=FireActive, 2=Alerted, 3=Complete
+    int32, NewPhase
 );
+
+// Broadcast when fire spawns — timer widget listens to this
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnFireSpawned);
 
 UCLASS()
 class VRFIRETRAINING_API AVRSimulationManager : public AActor
@@ -26,17 +27,14 @@ public:
 
     // ----------------------------------------------------------------
     // Phase tracking
+    // 0=Idle  1=FireActive  2=Alerted  3=Complete
     // ----------------------------------------------------------------
 
     UPROPERTY(BlueprintReadOnly, Category = "Simulation")
     int32 CurrentPhase = 0;
-    // 0 = Idle       (waiting to start)
-    // 1 = FireActive (fire burning, player hasn't hit buzzer yet)
-    // 2 = Alerted    (buzzer pressed, extinguishing in progress)
-    // 3 = Complete   (all fires out)
 
     // ----------------------------------------------------------------
-    // Timestamps  (world time in seconds, set by GetWorld()->GetTimeSeconds())
+    // Timestamps
     // ----------------------------------------------------------------
 
     UPROPERTY(BlueprintReadOnly, Category = "Simulation|Timestamps")
@@ -49,22 +47,34 @@ public:
     float FireExtinguishedTime = 0.f;
 
     // ----------------------------------------------------------------
-    // Scoring weights  (editable in editor so you can tune without recompile)
+    // Fire spawn config
     // ----------------------------------------------------------------
 
-    // Max score points awarded for alert speed  (out of 100)
+    // Drag your AVRFire Blueprint class here in the editor
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulation|Fire")
+    TSubclassOf<AActor> FireClass;
+
+    // Place Empty Actors in the level, drag them all into this array
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulation|Fire")
+    TArray<AActor*> FireSpawnPoints;
+
+    // Seconds after game start before fire spawns
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulation|Fire")
+    float FireSpawnDelay = 12.f;
+
+    // ----------------------------------------------------------------
+    // Scoring weights
+    // ----------------------------------------------------------------
+
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulation|Scoring")
     float AlertScoreWeight = 40.f;
 
-    // Max score points awarded for extinguish speed  (out of 100)
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulation|Scoring")
     float ExtinguishScoreWeight = 60.f;
 
-    // If player alerts within this many seconds they get full alert score
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulation|Scoring")
     float IdealAlertTime = 10.f;
 
-    // If player extinguishes within this many seconds they get full extinguish score
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulation|Scoring")
     float IdealExtinguishTime = 20.f;
 
@@ -78,27 +88,31 @@ public:
     UPROPERTY(BlueprintAssignable, Category = "Simulation")
     FOnPhaseChanged OnPhaseChanged;
 
+    // Timer widget binds to this to know when to appear
+    UPROPERTY(BlueprintAssignable, Category = "Simulation")
+    FOnFireSpawned OnFireSpawned;
+
     // ----------------------------------------------------------------
-    // Public API  (called by Buzzer, Fire, or Blueprint)
+    // Public API
     // ----------------------------------------------------------------
 
-    // Call once to start the scenario (fire is now burning)
+    // Call from Level Blueprint on BeginPlay — starts the grace period countdown
     UFUNCTION(BlueprintCallable, Category = "Simulation")
     void StartSimulation();
 
-    // Called by AVRBuzzer when player presses the alarm
+    // Called by AVRBuzzer
     UFUNCTION(BlueprintCallable, Category = "Simulation")
     void OnBuzzerPressed();
 
-    // Called by AVRFire when all fires are extinguished
+    // Called by AVRFire when all fires out
     UFUNCTION(BlueprintCallable, Category = "Simulation")
     void OnAllFiresExtinguished();
 
-    // Resets everything back to Idle so the scenario can be replayed
+    // Resets for replay
     UFUNCTION(BlueprintCallable, Category = "Simulation")
     void ResetSimulation();
 
-    // Read-only helpers for HUD
+    // HUD helpers
     UFUNCTION(BlueprintCallable, Category = "Simulation")
     float GetElapsedSinceFireStart() const;
 
@@ -115,9 +129,14 @@ public:
     virtual void Tick(float DeltaTime) override;
 
 private:
-    // Computes 0-100 score from timestamps
-    int32 CalculateScore(float AlertTime, float ExtinguishTime) const;
+    // Called by timer after FireSpawnDelay seconds
+    void SpawnFireAndBegin();
 
-    // Moves to a new phase and broadcasts OnPhaseChanged
+    int32 CalculateScore(float AlertTime, float ExtinguishTime) const;
     void SetPhase(int32 NewPhase);
+
+    // Spawned fire actors — kept so we can destroy on reset
+    TArray<AActor*> SpawnedFires;
+
+    FTimerHandle FireSpawnTimerHandle;
 };
