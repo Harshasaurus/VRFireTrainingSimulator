@@ -66,7 +66,7 @@ void UVRTimerWidget::HandleFireSpawned()
 
     if (PhaseText)
         PhaseText->SetText(
-            FText::FromString(TEXT("FIRE DETECTED — PRESS THE BUZZER!")));
+            FText::FromString(TEXT("FIRE DETECTED PRESS B near THE BUZZER!")));
 
     UE_LOG(LogTemp, Warning, TEXT("VRTimerWidget: Visible — timer started."));
 }
