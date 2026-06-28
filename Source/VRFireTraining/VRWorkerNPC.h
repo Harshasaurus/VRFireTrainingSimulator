@@ -6,9 +6,9 @@
 UENUM(BlueprintType)
 enum class EWorkerState : uint8
 {
-    Idle        UMETA(DisplayName = "Idle"),       // standing around working
-    Panicking   UMETA(DisplayName = "Panicking"),  // alarm triggered, running to exit
-    Evacuated   UMETA(DisplayName = "Evacuated")   // reached exit point safely
+    Idle        UMETA(DisplayName = "Idle"),
+    Panicking   UMETA(DisplayName = "Panicking"),
+    Evacuated   UMETA(DisplayName = "Evacuated")
 };
 
 UCLASS()
@@ -19,43 +19,32 @@ class VRFIRETRAINING_API AVRWorkerNPC : public ACharacter
 public:
     AVRWorkerNPC();
 
-    // ----------------------------------------------------------------
-    // Config  (set in Blueprint or Details panel per NPC)
-    // ----------------------------------------------------------------
-
-    // Where this NPC runs to when alarm fires
-    // Place an Empty Actor in the level and assign it here
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "NPC")
     AActor* ExitPoint = nullptr;
 
-    // How fast NPC walks when idle (cm/s)
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "NPC")
     float IdleWalkSpeed = 100.f;
 
-    // How fast NPC runs when panicking (cm/s)
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "NPC")
     float PanicRunSpeed = 400.f;
 
-    // ----------------------------------------------------------------
-    // State
-    // ----------------------------------------------------------------
+    // How far from current position the NPC can wander (cm)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "NPC")
+    float WanderRadius = 500.f;
+
+    // How long NPC waits at each wander point before moving again (seconds)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "NPC")
+    float WanderWaitTime = 2.f;
 
     UPROPERTY(BlueprintReadOnly, Category = "NPC")
     EWorkerState CurrentState = EWorkerState::Idle;
 
-    // ----------------------------------------------------------------
-    // API
-    // ----------------------------------------------------------------
-
-    // Called by AVRBuzzer delegate or Blueprint when alarm fires
     UFUNCTION(BlueprintCallable, Category = "NPC")
     void OnAlarmTriggered();
 
-    // Called by SimulationManager->ResetSimulation() for replay
     UFUNCTION(BlueprintCallable, Category = "NPC")
     void ResetNPC();
 
-    // Read by SimulationManager to count safe evacuees
     UFUNCTION(BlueprintCallable, Category = "NPC")
     bool IsEvacuated() const { return CurrentState == EWorkerState::Evacuated; }
 
@@ -70,13 +59,15 @@ private:
 
     void SetState(EWorkerState NewState);
     void MoveToExit();
-
-    // Checks every tick if NPC reached exit
     void CheckIfReachedExit();
 
-    // How close NPC needs to be to ExitPoint to count as evacuated (cm)
-    float AcceptanceRadius = 100.f;
+    // Wander logic
+    void StartWander();
+    void WanderTick(float DeltaTime);
+    bool bIsWaiting = false;
+    float WanderWaitTimer = 0.f;
 
-    // Starting transform so we can reset position on replay
+    float AcceptanceRadius = 100.f;
     FTransform SpawnTransform;
+    FVector SpawnLocation;
 };
