@@ -61,4 +61,8 @@ protected:
 
 public:
     virtual void Tick(float DeltaTime) override;
+
+private:
+    class AVRFireExtinguisher* Extinguisher = nullptr;
+    void FindAndBindExtinguisher();
 };

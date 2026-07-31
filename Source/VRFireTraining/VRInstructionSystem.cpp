@@ -1,4 +1,6 @@
 #include "VRInstructionSystem.h"
+#include "VRFireExtinguisher.h"
+#include "Kismet/GameplayStatics.h"
 
 AVRInstructionSystem::AVRInstructionSystem()
 {
@@ -9,18 +11,44 @@ AVRInstructionSystem::AVRInstructionSystem()
     Instructions.Add(TEXT("Step 2: Pull the safety pin by pressing P"));
     Instructions.Add(TEXT("Step 3: Squeeze the handle by pressing T to spray"));
     Instructions.Add(TEXT("Step 4: Spray until the fire is totally gone"));
-    
 }
 
 void AVRInstructionSystem::BeginPlay()
 {
     Super::BeginPlay();
+    FindAndBindExtinguisher();
     StartTraining();
 }
 
 void AVRInstructionSystem::Tick(float DeltaTime)
 {
     Super::Tick(DeltaTime);
+}
+
+void AVRInstructionSystem::FindAndBindExtinguisher()
+{
+    if (Extinguisher) return;
+
+    TArray<AActor*> Found;
+    UGameplayStatics::GetAllActorsOfClass(GetWorld(),
+        AVRFireExtinguisher::StaticClass(), Found);
+
+    if (Found.Num() > 0)
+        Extinguisher = Cast<AVRFireExtinguisher>(Found[0]);
+
+    if (Extinguisher)
+    {
+        Extinguisher->OnExtinguisherGrabbed.AddDynamic(this, &AVRInstructionSystem::NextInstruction);
+        Extinguisher->OnPinPulled.AddDynamic(this, &AVRInstructionSystem::NextInstruction);
+        Extinguisher->OnSprayStarted.AddDynamic(this, &AVRInstructionSystem::NextInstruction);
+        Extinguisher->OnExtinguisherReleased.AddDynamic(this, &AVRInstructionSystem::StartTraining);
+
+        UE_LOG(LogTemp, Warning, TEXT("VRInstructionSystem: Bound to extinguisher delegates."));
+    }
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT("VRInstructionSystem: Could not find extinguisher to bind!"));
+    }
 }
 
 void AVRInstructionSystem::StartTraining()
