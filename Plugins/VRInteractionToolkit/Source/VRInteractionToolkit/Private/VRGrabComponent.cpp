@@ -50,45 +50,25 @@ void UVRGrabComponent::BeginPlay()
 
     SetupInputBindings();
 }
-
 void UVRGrabComponent::SetupInputBindings()
 {
-    // Get the pawn that owns this component
     APawn* OwnerPawn = Cast<APawn>(GetOwner());
     if (!OwnerPawn) return;
 
-    // Get the player controller
     APlayerController* PC = Cast<APlayerController>(OwnerPawn->GetController());
     if (!PC) return;
 
-    // Get Enhanced Input Component from the pawn
-    UEnhancedInputComponent* EIC = Cast<UEnhancedInputComponent>(
-        OwnerPawn->InputComponent);
+    UEnhancedInputComponent* EIC = Cast<UEnhancedInputComponent>(OwnerPawn->InputComponent);
     if (!EIC) return;
 
-    // Find the grab input action from the project
-    // Right hand uses GrabRight, Left hand uses GrabLeft
-    FString ActionName = bIsRightHand ?
-        TEXT("/Game/VRTemplate/Input/Actions/IA_Grab_Right") :
-        TEXT("/Game/VRTemplate/Input/Actions/IA_Grab_Left");
-
-    UInputAction* GrabAction = LoadObject<UInputAction>(
-        nullptr, *ActionName);
-
-    if (GrabAction)
+    if (!GrabAction)
     {
-        // Single binding ? toggles grab/release on each press
-        EIC->BindAction(GrabAction, ETriggerEvent::Triggered,
-            this, &UVRGrabComponent::OnGrabPressed);
+        UE_LOG(LogTemp, Error, TEXT("VRGrabComponent: No GrabAction assigned!"));
+        return;
+    }
 
-        UE_LOG(LogTemp, Warning, TEXT("VRGrabComponent: Input bound for %s hand"),
-            bIsRightHand ? TEXT("Right") : TEXT("Left"));
-    }
-    else
-    {
-        UE_LOG(LogTemp, Error, TEXT("VRGrabComponent: Could not find grab action at %s"),
-            *ActionName);
-    }
+    EIC->BindAction(GrabAction, ETriggerEvent::Triggered,
+        this, &UVRGrabComponent::OnGrabPressed);
 }
 
 void UVRGrabComponent::OnGrabPressed()
@@ -129,16 +109,11 @@ void UVRGrabComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 
 void UVRGrabComponent::TryGrab()
 {
-    UE_LOG(LogTemp, Warning, TEXT("TryGrab called on %s hand!"),
-        bIsRightHand ? TEXT("Right") : TEXT("Left"));
-
+   
     if (bIsHolding) return;
 
-    // Only left hand can grab the extinguisher
-    if (bIsRightHand) return;
-
     AVRGrabbable* Nearest = FindNearestGrabbable();
-    if (Nearest && MotionControllerComponent)
+    if (Nearest && MotionControllerComponent && !Nearest->bIsGrabbed)
     {
         HeldObject = Nearest;
         bIsHolding = true;

@@ -4,7 +4,7 @@
 #include "VRGrabbable.generated.h"
 
 UCLASS()
-class VRFIRETRAINING_API AVRGrabbable : public AActor
+class VRINTERACTIONTOOLKIT_API AVRGrabbable : public AActor
 {
     GENERATED_BODY()
 public:

@@ -7,6 +7,11 @@ AVRBuzzer::AVRBuzzer()
 {
     PrimaryActorTick.bCanEverTick = false;
 
+    // Buzzer is mounted on a wall — it should never fall or move.
+    // AVRGrabbable's constructor turns physics ON by default, so we turn it back off here.
+    MeshComponent->SetSimulatePhysics(false);
+    MeshComponent->SetCollisionProfileName(TEXT("BlockAll"));
+
     // Alarm light — red when active, off by default
     AlarmLight = CreateDefaultSubobject<UPointLightComponent>(TEXT("AlarmLight"));
     AlarmLight->SetupAttachment(RootComponent);
@@ -17,9 +22,21 @@ AVRBuzzer::AVRBuzzer()
 
 void AVRBuzzer::BeginPlay()
 {
-    // AVRGrabbable::BeginPlay() — keeps physics + grab sphere setup intact
+    // AVRGrabbable::BeginPlay() — keeps grab sphere setup intact,
+    // even though Grab() itself is now disabled below
     Super::BeginPlay();
     FindSimulationManager();
+}
+
+// ----------------------------------------------------------------
+// Overridden — buzzer cannot be grabbed/attached to hand.
+// Intentionally left empty so calling Grab() on this actor does nothing.
+// ----------------------------------------------------------------
+
+void AVRBuzzer::Grab(USceneComponent* AttachTo)
+{
+    // Do nothing — buzzer stays fixed in place.
+    // Interaction happens only through PressBuzzer(), called from key input.
 }
 
 // ----------------------------------------------------------------

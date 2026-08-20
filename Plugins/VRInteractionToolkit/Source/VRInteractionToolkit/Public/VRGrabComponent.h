@@ -5,13 +5,16 @@
 #include "MotionControllerComponent.h"
 #include "VRGrabComponent.generated.h"
 
-UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
-class VRFIRETRAINING_API UVRGrabComponent : public UActorComponent
+UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
+class VRINTERACTIONTOOLKIT_API UVRGrabComponent : public UActorComponent
 {
     GENERATED_BODY()
 
 public:
     UVRGrabComponent();
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "VR Grab")
+    class UInputAction* GrabAction;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "VR Grab")
     UMotionControllerComponent* MotionControllerComponent;

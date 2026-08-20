@@ -1,0 +1,30 @@
+{
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "1.0",
+	"FriendlyName": "VR Fire Simulation Toolkit",
+	"Description": "Fire emergency simulation objects (fire source, extinguisher, buzzer, simulation manager) for UE5 VR training projects. Depends on VRInteractionToolkit for grab/interaction.",
+	"Category": "Virtual Reality",
+	"CreatedBy": "Harshal",
+	"CreatedByURL": "https://github.com/Harshasaurus",
+	"DocsURL": "",
+	"MarketplaceURL": "",
+	"SupportURL": "",
+	"EnabledByDefault": true,
+	"CanContainContent": true,
+	"IsBetaVersion": true,
+	"Installed": false,
+	"Plugins": [
+		{
+			"Name": "VRInteractionToolkit",
+			"Enabled": true
+		}
+	],
+	"Modules": [
+		{
+			"Name": "VRFireSimulationToolkit",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		}
+	]
+}

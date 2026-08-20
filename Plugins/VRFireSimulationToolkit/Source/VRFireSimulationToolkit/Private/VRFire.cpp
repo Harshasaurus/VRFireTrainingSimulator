@@ -1,8 +1,7 @@
 #include "VRFire.h"
-#include "VRSimulationManager.h"          // NEW
+#include "VRSimulationManager.h"
 #include "Particles/ParticleSystemComponent.h"
 #include "Kismet/GameplayStatics.h"
-#include "VRInstructionSystem.h"
 #include "Components/SphereComponent.h"
 
 AVRFire::AVRFire()
@@ -30,17 +29,12 @@ void AVRFire::Tick(float DeltaTime)
     Super::Tick(DeltaTime);
 }
 
-// ----------------------------------------------------------------
-// Unchanged from original
-// ----------------------------------------------------------------
-
 void AVRFire::ApplyExtinguisher(float DeltaTime)
 {
     if (bIsExtinguished) return;
 
     FireHealth -= ExtinguishRate * DeltaTime;
     FireHealth = FMath::Clamp(FireHealth, 0.0f, 100.0f);
-    UE_LOG(LogTemp, Warning, TEXT("Fire health: %.1f"), FireHealth);
 
     // Scale particle down as fire dies
     float HealthPercent = FireHealth / 100.0f;
@@ -52,11 +46,6 @@ void AVRFire::ApplyExtinguisher(float DeltaTime)
     }
 }
 
-// ----------------------------------------------------------------
-// Modified: Extinguish() keeps original InstructionSystem call
-//           and ADDS SimulationManager notification
-// ----------------------------------------------------------------
-
 void AVRFire::Extinguish()
 {
     bIsExtinguished = true;
@@ -64,7 +53,8 @@ void AVRFire::Extinguish()
     FireParticle->SetVisibility(false);
     UE_LOG(LogTemp, Warning, TEXT("Fire Extinguished!"));
 
-    // Broadcast per-fire delegate (unchanged)
+    // Broadcast per-fire delegate - host project (instruction system, HUD, etc.)
+    // binds to this to react to an individual fire going out.
     OnFireExtinguished.Broadcast();
 
     // Check if ALL fires in the level are out
@@ -84,31 +74,17 @@ void AVRFire::Extinguish()
 
     if (bAllExtinguished)
     {
-        UE_LOG(LogTemp, Warning, TEXT("All fires out! Training Complete!"));
+        UE_LOG(LogTemp, Warning, TEXT("All fires out! Notifying SimulationManager."));
 
-        // ORIGINAL: Keep InstructionSystem call intact so existing Blueprint
-        //           HUD widgets that bind OnTrainingComplete still work
-        TArray<AActor*> Found;
-        UGameplayStatics::GetAllActorsOfClass(
-            GetWorld(), AVRInstructionSystem::StaticClass(), Found);
-        if (Found.Num() > 0)
-        {
-            AVRInstructionSystem* IS = Cast<AVRInstructionSystem>(Found[0]);
-            if (IS)
-                IS->NextInstruction();
-        }
-
-        // NEW: Also notify SimulationManager for scoring
-        //      Lazy init here — safe even if SimManager isn't in the level
+        // Notify SimulationManager for scoring/phase progression.
+        // The host project's instruction system should bind to
+        // AVRSimulationManager::OnSimulationComplete instead of this class
+        // knowing about any specific instruction/tutorial system.
         FindSimulationManager();
         if (SimulationManager)
             SimulationManager->OnAllFiresExtinguished();
     }
 }
-
-// ----------------------------------------------------------------
-// NEW: lazy init helper (same pattern as rest of codebase)
-// ----------------------------------------------------------------
 
 void AVRFire::FindSimulationManager()
 {
@@ -121,8 +97,7 @@ void AVRFire::FindSimulationManager()
     if (Found.Num() > 0)
         SimulationManager = Cast<AVRSimulationManager>(Found[0]);
 
-    // Not logging an error here — SimulationManager is optional.
-    // If it's not in the level, the old InstructionSystem flow still works fine.
+    // Not logging an error here - SimulationManager is optional.
     if (SimulationManager)
         UE_LOG(LogTemp, Warning, TEXT("VRFire: SimulationManager found and cached."));
 }

@@ -14,11 +14,11 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnPhaseChanged,
     int32, NewPhase
 );
 
-// Broadcast when fire spawns — timer widget listens to this
+// Broadcast when fire spawns - timer widget listens to this
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnFireSpawned);
 
 UCLASS()
-class VRFIRETRAINING_API AVRSimulationManager : public AActor
+class VRFIRESIMULATIONTOOLKIT_API AVRSimulationManager : public AActor
 {
     GENERATED_BODY()
 
@@ -96,7 +96,7 @@ public:
     // Public API
     // ----------------------------------------------------------------
 
-    // Call from Level Blueprint on BeginPlay — starts the grace period countdown
+    // Call from Level Blueprint on BeginPlay - starts the grace period countdown
     UFUNCTION(BlueprintCallable, Category = "Simulation")
     void StartSimulation();
 
@@ -135,7 +135,7 @@ private:
     int32 CalculateScore(float AlertTime, float ExtinguishTime) const;
     void SetPhase(int32 NewPhase);
 
-    // Spawned fire actors — kept so we can destroy on reset
+    // Spawned fire actors - kept so we can destroy on reset
     TArray<AActor*> SpawnedFires;
 
     FTimerHandle FireSpawnTimerHandle;

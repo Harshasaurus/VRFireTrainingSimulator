@@ -6,7 +6,7 @@
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnFireExtinguished);
 
 UCLASS()
-class VRFIRETRAINING_API AVRFire : public AActor
+class VRFIRESIMULATIONTOOLKIT_API AVRFire : public AActor
 {
     GENERATED_BODY()
 
@@ -37,7 +37,7 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Fire")
     void ApplyExtinguisher(float DeltaTime);
 
-    // Delegate — notifies instruction system when fire out
+    // Delegate - notifies instruction system when fire out
     UPROPERTY(BlueprintAssignable, Category = "Fire")
     FOnFireExtinguished OnFireExtinguished;
 
@@ -50,7 +50,6 @@ public:
 private:
     void Extinguish();
 
-    // NEW: cached reference to SimulationManager
     class AVRSimulationManager* SimulationManager = nullptr;
     void FindSimulationManager();
 };

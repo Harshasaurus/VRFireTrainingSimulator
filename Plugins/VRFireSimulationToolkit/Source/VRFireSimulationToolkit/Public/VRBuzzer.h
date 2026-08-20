@@ -6,7 +6,7 @@
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnBuzzerActivated);
 
 UCLASS()
-class VRFIRETRAINING_API AVRBuzzer : public AVRGrabbable
+class VRFIRESIMULATIONTOOLKIT_API AVRBuzzer : public AVRGrabbable
 {
     GENERATED_BODY()
 
@@ -50,7 +50,6 @@ public:
 
     // ----------------------------------------------------------------
     // API
-// 
     // ----------------------------------------------------------------
 
     // Call this from Blueprint input (e.g. right trigger while near buzzer)
@@ -61,6 +60,11 @@ public:
     // Resets buzzer for replay
     UFUNCTION(BlueprintCallable, Category = "Buzzer")
     void ResetBuzzer();
+
+    // NEW: Overridden so the buzzer is fixed to the wall/panel and
+    // never gets attached to the player's hand like other grabbables.
+    // PressBuzzer() (via key input) is the only way to interact with it.
+    virtual void Grab(USceneComponent* AttachTo) override;
 
 protected:
     virtual void BeginPlay() override;

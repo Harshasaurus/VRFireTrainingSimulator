@@ -1,0 +1,14 @@
+# Unreal Engine generated files
+Binaries/
+DerivedDataCache/
+Intermediate/
+Saved/
+
+# Visual Studio workspace files
+.vs/
+*.sln.DotSettings.user
+
+# Plugin generated files
+Plugins/*/Binaries/
+Plugins/*/Intermediate/
+Plugins/*/Saved/

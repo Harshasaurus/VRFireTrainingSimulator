@@ -1,6 +1,5 @@
 #include "VRFireExtinguisher.h"
 #include "VRFire.h"
-#include "VRInstructionSystem.h"
 #include "Components/SphereComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Kismet/GameplayStatics.h"
@@ -21,20 +20,6 @@ void AVRFireExtinguisher::BeginPlay()
     Super::BeginPlay();
 }
 
-void AVRFireExtinguisher::FindInstructionSystem()
-{
-    if (InstructionSystem) return;
-
-    TArray<AActor*> Found;
-    UGameplayStatics::GetAllActorsOfClass(GetWorld(),
-        AVRInstructionSystem::StaticClass(), Found);
-    if (Found.Num() > 0)
-        InstructionSystem = Cast<AVRInstructionSystem>(Found[0]);
-
-    if (!InstructionSystem)
-        UE_LOG(LogTemp, Error, TEXT("InstructionSystem is NULL!"));
-}
-
 void AVRFireExtinguisher::Tick(float DeltaTime)
 {
     Super::Tick(DeltaTime);
@@ -50,14 +35,10 @@ void AVRFireExtinguisher::Grab(USceneComponent* AttachTo)
     if (!bHasGrabbedBefore)
     {
         bHasGrabbedBefore = true;
-        FindInstructionSystem();
-        if (InstructionSystem)
-        {
-            InstructionSystem->NextInstruction();
-            UE_LOG(LogTemp, Warning, TEXT("NextInstruction called from Grab"));
-        }
+        OnExtinguisherGrabbed.Broadcast();
     }
 }
+
 void AVRFireExtinguisher::Release(FVector ThrowVelocity)
 {
     bIsSpraying = false;
@@ -69,13 +50,9 @@ void AVRFireExtinguisher::Release(FVector ThrowVelocity)
     Super::Release(ThrowVelocity);
     UE_LOG(LogTemp, Warning, TEXT("Extinguisher released!"));
 
-    FindInstructionSystem();
-    if (InstructionSystem)
-    {
-        InstructionSystem->StartTraining();
-        UE_LOG(LogTemp, Warning, TEXT("Training reset on release"));
-    }
+    OnExtinguisherReleased.Broadcast();
 }
+
 void AVRFireExtinguisher::PullPin()
 {
     if (!bIsGrabbed || bPinPulled) return;
@@ -83,12 +60,7 @@ void AVRFireExtinguisher::PullPin()
     bPinPulled = true;
     UE_LOG(LogTemp, Warning, TEXT("Pin pulled!"));
 
-    FindInstructionSystem();
-    if (InstructionSystem)
-    {
-        InstructionSystem->NextInstruction();
-        UE_LOG(LogTemp, Warning, TEXT("NextInstruction called from PullPin"));
-    }
+    OnPinPulled.Broadcast();
 }
 
 void AVRFireExtinguisher::StartSpray()
@@ -102,12 +74,7 @@ void AVRFireExtinguisher::StartSpray()
     if (!bHasStartedSprayBefore)
     {
         bHasStartedSprayBefore = true;
-        FindInstructionSystem();
-        if (InstructionSystem)
-        {
-            InstructionSystem->NextInstruction();
-            UE_LOG(LogTemp, Warning, TEXT("NextInstruction called from StartSpray"));
-        }
+        OnSprayStarted.Broadcast();
     }
 }
 
@@ -135,8 +102,6 @@ void AVRFireExtinguisher::SprayTick(float DeltaTime)
         if (Distance <= SprayRange)
         {
             Fire->ApplyExtinguisher(DeltaTime);
-            UE_LOG(LogTemp, Warning, TEXT("Extinguishing! Fire health: %f"),
-                Fire->FireHealth);
         }
     }
 }

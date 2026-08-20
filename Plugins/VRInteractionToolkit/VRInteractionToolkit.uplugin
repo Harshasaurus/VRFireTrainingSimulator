@@ -1,0 +1,24 @@
+{
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "1.0",
+	"FriendlyName": "VR Interaction Toolkit",
+	"Description": "Reusable VR grab and interaction system for UE5.",
+	"Category": "Virtual Reality",
+	"CreatedBy": "Harshal",
+	"CreatedByURL": "https://github.com/Harshasaurus",
+	"DocsURL": "",
+	"MarketplaceURL": "",
+	"SupportURL": "",
+	"EnabledByDefault": true,
+	"CanContainContent": true,
+	"IsBetaVersion": true,
+	"Installed": false,
+	"Modules": [
+		{
+			"Name": "VRInteractionToolkit",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		}
+	]
+}
