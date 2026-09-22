@@ -13,33 +13,52 @@ class VRFIRESIMULATIONTOOLKIT_API AVRFire : public AActor
 public:
     AVRFire();
 
-    // Fire particle system
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Fire")
     class UParticleSystemComponent* FireParticle;
 
-    // Collision sphere
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Fire")
     class USphereComponent* FireCollision;
 
-    // Fire health 100 = fully burning, 0 = extinguished
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Fire")
     float FireHealth = 100.0f;
 
-    // How fast fire dies when sprayed
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Fire")
     float ExtinguishRate = 20.0f;
 
-    // Is fire already out?
     UPROPERTY(BlueprintReadOnly, Category = "Fire")
     bool bIsExtinguished = false;
 
-    // Called every frame while being sprayed
     UFUNCTION(BlueprintCallable, Category = "Fire")
     void ApplyExtinguisher(float DeltaTime);
 
-    // Delegate - notifies instruction system when fire out
     UPROPERTY(BlueprintAssignable, Category = "Fire")
     FOnFireExtinguished OnFireExtinguished;
+
+    // ----------------------------------------------------------------
+    // Fire Spread
+    // ----------------------------------------------------------------
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Fire|Spread")
+    bool bCanSpread = true;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Fire|Spread")
+    float SpreadInterval = 20.0f;
+
+    // NEW: closest a new fire can spawn (cm) — keeps it out of the
+    // original fire's own collision/particle radius
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Fire|Spread")
+    float MinSpreadDistance = 60.0f;
+
+    // Furthest a new fire can spawn (cm) — reduced so it stays
+    // adjacent to the original instead of jumping across the room
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Fire|Spread")
+    float MaxSpreadDistance = 120.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Fire|Spread")
+    int32 MaxSpreadGenerations = 2;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Fire|Spread")
+    int32 SpreadGeneration = 0;
 
 protected:
     virtual void BeginPlay() override;
@@ -52,4 +71,7 @@ private:
 
     class AVRSimulationManager* SimulationManager = nullptr;
     void FindSimulationManager();
+
+    FTimerHandle SpreadTimerHandle;
+    void TrySpread();
 };

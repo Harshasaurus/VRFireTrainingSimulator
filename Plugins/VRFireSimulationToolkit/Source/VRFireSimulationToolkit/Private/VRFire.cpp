@@ -8,13 +8,11 @@ AVRFire::AVRFire()
 {
     PrimaryActorTick.bCanEverTick = true;
 
-    // Collision root
     FireCollision = CreateDefaultSubobject<USphereComponent>(TEXT("FireCollision"));
     RootComponent = FireCollision;
     FireCollision->SetSphereRadius(50.0f);
     FireCollision->SetCollisionProfileName(TEXT("OverlapAll"));
 
-    // Fire particle
     FireParticle = CreateDefaultSubobject<UParticleSystemComponent>(TEXT("FireParticle"));
     FireParticle->SetupAttachment(RootComponent);
 }
@@ -22,6 +20,17 @@ AVRFire::AVRFire()
 void AVRFire::BeginPlay()
 {
     Super::BeginPlay();
+
+    if (bCanSpread && SpreadGeneration < MaxSpreadGenerations)
+    {
+        GetWorldTimerManager().SetTimer(
+            SpreadTimerHandle,
+            this,
+            &AVRFire::TrySpread,
+            SpreadInterval,
+            false
+        );
+    }
 }
 
 void AVRFire::Tick(float DeltaTime)
@@ -35,8 +44,8 @@ void AVRFire::ApplyExtinguisher(float DeltaTime)
 
     FireHealth -= ExtinguishRate * DeltaTime;
     FireHealth = FMath::Clamp(FireHealth, 0.0f, 100.0f);
+    UE_LOG(LogTemp, Warning, TEXT("Fire health: %.1f"), FireHealth);
 
-    // Scale particle down as fire dies
     float HealthPercent = FireHealth / 100.0f;
     FireParticle->SetWorldScale3D(FVector(HealthPercent));
 
@@ -53,11 +62,10 @@ void AVRFire::Extinguish()
     FireParticle->SetVisibility(false);
     UE_LOG(LogTemp, Warning, TEXT("Fire Extinguished!"));
 
-    // Broadcast per-fire delegate - host project (instruction system, HUD, etc.)
-    // binds to this to react to an individual fire going out.
+    GetWorldTimerManager().ClearTimer(SpreadTimerHandle);
+
     OnFireExtinguished.Broadcast();
 
-    // Check if ALL fires in the level are out
     TArray<AActor*> AllFires;
     UGameplayStatics::GetAllActorsOfClass(GetWorld(), AVRFire::StaticClass(), AllFires);
 
@@ -74,12 +82,8 @@ void AVRFire::Extinguish()
 
     if (bAllExtinguished)
     {
-        UE_LOG(LogTemp, Warning, TEXT("All fires out! Notifying SimulationManager."));
+        UE_LOG(LogTemp, Warning, TEXT("All fires out!"));
 
-        // Notify SimulationManager for scoring/phase progression.
-        // The host project's instruction system should bind to
-        // AVRSimulationManager::OnSimulationComplete instead of this class
-        // knowing about any specific instruction/tutorial system.
         FindSimulationManager();
         if (SimulationManager)
             SimulationManager->OnAllFiresExtinguished();
@@ -97,7 +101,47 @@ void AVRFire::FindSimulationManager()
     if (Found.Num() > 0)
         SimulationManager = Cast<AVRSimulationManager>(Found[0]);
 
-    // Not logging an error here - SimulationManager is optional.
     if (SimulationManager)
         UE_LOG(LogTemp, Warning, TEXT("VRFire: SimulationManager found and cached."));
+}
+
+void AVRFire::TrySpread()
+{
+    if (bIsExtinguished) return;
+
+    UWorld* World = GetWorld();
+    if (!World) return;
+
+    // NEW: pick a random direction, then a distance between
+    // MinSpreadDistance and MaxSpreadDistance — keeps the new fire
+    // close and adjacent instead of anywhere in a wide circle
+    float RandomAngle = FMath::RandRange(0.f, 2.f * PI);
+    float RandomDistance = FMath::RandRange(MinSpreadDistance, MaxSpreadDistance);
+
+    FVector Offset(
+        FMath::Cos(RandomAngle) * RandomDistance,
+        FMath::Sin(RandomAngle) * RandomDistance,
+        0.f
+    );
+
+    FVector SpawnLocation = GetActorLocation() + Offset;
+
+    FActorSpawnParameters Params;
+    Params.SpawnCollisionHandlingOverride =
+        ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+    // Spawn using GetClass() (this actor's actual class — e.g. BP_VRFire)
+    // instead of AVRFire::StaticClass() (the raw C++ base). This keeps
+    // whatever particle system, sound, and mesh you set in the Blueprint,
+    // so spread fires actually render instead of being invisible.
+    AVRFire* NewFire = World->SpawnActor<AVRFire>(
+        GetClass(), SpawnLocation, GetActorRotation(), Params);
+
+    if (NewFire)
+    {
+        NewFire->SpreadGeneration = SpreadGeneration + 1;
+        UE_LOG(LogTemp, Warning,
+            TEXT("VRFire: %s spread! New fire at generation %d, %.0f units away."),
+            *GetName(), NewFire->SpreadGeneration, RandomDistance);
+    }
 }
