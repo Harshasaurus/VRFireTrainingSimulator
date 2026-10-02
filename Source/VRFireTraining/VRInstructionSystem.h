@@ -1,5 +1,4 @@
 #pragma once
-
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "VRInstructionSystem.generated.h"
@@ -12,7 +11,6 @@ UCLASS()
 class VRFIRETRAINING_API AVRInstructionSystem : public AActor
 {
     GENERATED_BODY()
-
 public:
     AVRInstructionSystem();
 
@@ -52,17 +50,23 @@ public:
     UPROPERTY(BlueprintAssignable, Category = "Instructions")
     FOnTrainingComplete OnTrainingComplete;
 
-    // Start the training
+    // Start the training — now called only once fire spawns,
+    // not automatically on BeginPlay
     UFUNCTION(BlueprintCallable, Category = "Instructions")
     void StartTraining();
 
 protected:
     virtual void BeginPlay() override;
-
 public:
     virtual void Tick(float DeltaTime) override;
 
 private:
     class AVRFireExtinguisher* Extinguisher = nullptr;
     void FindAndBindExtinguisher();
+
+    // NEW: waits for AVRSimulationManager::OnFireSpawned before
+    // calling StartTraining(), instead of starting immediately
+    class AVRSimulationManager* SimulationManager = nullptr;
+    void FindAndBindSimulationManager();
+    FTimerHandle FindSimManagerRetryHandle;
 };

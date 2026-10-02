@@ -36,15 +36,12 @@ void UVRGrabComponent::BeginPlay()
             if (MC && MC->GetName().Contains(bIsRightHand ? "Right" : "Left"))
             {
                 MotionControllerComponent = MC;
-                UE_LOG(LogTemp, Warning, TEXT("GrabComponent: Found controller: %s"),
-                    *MC->GetName());
                 break;
             }
         }
 
         if (!MotionControllerComponent)
         {
-            UE_LOG(LogTemp, Error, TEXT("GrabComponent: Could not find motion controller!"));
         }
     }
 
@@ -63,7 +60,6 @@ void UVRGrabComponent::SetupInputBindings()
 
     if (!GrabAction)
     {
-        UE_LOG(LogTemp, Error, TEXT("VRGrabComponent: No GrabAction assigned!"));
         return;
     }
 
@@ -118,7 +114,6 @@ void UVRGrabComponent::TryGrab()
         HeldObject = Nearest;
         bIsHolding = true;
         HeldObject->Grab(MotionControllerComponent);
-        UE_LOG(LogTemp, Warning, TEXT("Grabbed: %s"), *HeldObject->GetName());
     }
 }
 void UVRGrabComponent::TryRelease()
@@ -127,8 +122,6 @@ void UVRGrabComponent::TryRelease()
 
     FVector ThrowVelocity = CalculateThrowVelocity();
     HeldObject->Release(ThrowVelocity);
-    UE_LOG(LogTemp, Warning, TEXT("Released with velocity: %s"),
-        *ThrowVelocity.ToString());
 
     HeldObject = nullptr;
     bIsHolding = false;
@@ -139,7 +132,6 @@ AVRGrabbable* UVRGrabComponent::FindNearestGrabbable()
 {
     if (!MotionControllerComponent)
     {
-        UE_LOG(LogTemp, Error, TEXT("No MotionControllerComponent set!"));
         return nullptr;
     }
 
@@ -149,8 +141,6 @@ AVRGrabbable* UVRGrabComponent::FindNearestGrabbable()
     UGameplayStatics::GetAllActorsOfClass(GetWorld(),
         AVRGrabbable::StaticClass(), FoundActors);
 
-    UE_LOG(LogTemp, Warning, TEXT("Found %d grabbable actors. Hand at: %s. Radius: %f"),
-        FoundActors.Num(), *HandLocation.ToString(), GrabRadius);
 
     AVRGrabbable* Nearest = nullptr;
     float NearestDistance = GrabRadius;
@@ -158,8 +148,6 @@ AVRGrabbable* UVRGrabComponent::FindNearestGrabbable()
     for (AActor* Actor : FoundActors)
     {
         float Distance = FVector::Dist(HandLocation, Actor->GetActorLocation());
-        UE_LOG(LogTemp, Warning, TEXT("Actor %s distance: %f"),
-            *Actor->GetName(), Distance);
 
         if (Distance < NearestDistance)
         {
