@@ -140,8 +140,12 @@ void AVRFire::TrySpread()
     if (NewFire)
     {
         NewFire->SpreadGeneration = SpreadGeneration + 1;
+        FindSimulationManager();
+        if (SimulationManager)
+            SimulationManager->RegisterFireSpawned();
         UE_LOG(LogTemp, Warning,
             TEXT("VRFire: %s spread! New fire at generation %d, %.0f units away."),
             *GetName(), NewFire->SpreadGeneration, RandomDistance);
     }
 }
+

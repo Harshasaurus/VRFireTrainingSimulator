@@ -1,4 +1,4 @@
-#include "VRSimulationManager.h"
+ï»¿#include "VRSimulationManager.h"
 #include "VRFire.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/World.h"
@@ -50,7 +50,7 @@ void AVRSimulationManager::StartSimulation()
         TEXT("SimulationManager: Grace period started. Fire spawns in %.1f seconds."),
         FireSpawnDelay);
 
-    // Start countdown — fire spawns after FireSpawnDelay seconds
+    // Start countdown â€” fire spawns after FireSpawnDelay seconds
     GetWorld()->GetTimerManager().SetTimer(
         FireSpawnTimerHandle,
         this,
@@ -70,6 +70,7 @@ void AVRSimulationManager::OnBuzzerPressed()
     }
 
     BuzzerPressedTime = GetWorld()->GetTimeSeconds();
+    bBuzzerWasPressed = true;
     SetPhase(2); // Alerted
 
     UE_LOG(LogTemp, Warning,
@@ -87,11 +88,11 @@ void AVRSimulationManager::OnAllFiresExtinguished()
     }
 
     // If buzzer was never pressed, stamp it now so score is penalised but game ends cleanly
-    if (BuzzerPressedTime <= 0.f)
+    if (!bBuzzerWasPressed)
     {
         BuzzerPressedTime = GetWorld()->GetTimeSeconds();
         UE_LOG(LogTemp, Warning,
-            TEXT("SimulationManager: Buzzer never pressed — stamping at extinguish time."));
+            TEXT("SimulationManager: Buzzer never pressed â€” stamping at extinguish time."));
     }
 
     FireExtinguishedTime = GetWorld()->GetTimeSeconds();
@@ -125,6 +126,12 @@ void AVRSimulationManager::ResetSimulation()
     FireStartTime = 0.f;
     BuzzerPressedTime = 0.f;
     FireExtinguishedTime = 0.f;
+    InitialFireCount = 0;
+    TotalFiresSpawned = 0;
+    AimAccuracySampleTotal = 0.f;
+    AimAccuracySampleCount = 0;
+    AverageAimAccuracy = 1.f;
+    bBuzzerWasPressed = false;
 
     SetPhase(0);
 
@@ -175,6 +182,7 @@ void AVRSimulationManager::SpawnFireAndBegin()
         if (Fire)
         {
             SpawnedFires.Add(Fire);
+            RegisterFireSpawned();
             UE_LOG(LogTemp, Warning,
                 TEXT("SimulationManager: Fire spawned at %s"), *SpawnPoint->GetName());
         }
@@ -188,18 +196,58 @@ void AVRSimulationManager::SpawnFireAndBegin()
     OnFireSpawned.Broadcast();
 
     UE_LOG(LogTemp, Warning,
-        TEXT("SimulationManager: Fire is live at %.2f — simulation active!"), FireStartTime);
+        TEXT("SimulationManager: Fire is live at %.2f â€” simulation active!"), FireStartTime);
 }
 
 int32 AVRSimulationManager::CalculateScore(float AlertTime, float ExtinguishTime) const
 {
-    float AlertRatio = FMath::Clamp(
-        1.f - (AlertTime / (IdealAlertTime * 2.f)), 0.f, 1.f);
-    float ExtRatio = FMath::Clamp(
-        1.f - (ExtinguishTime / (IdealExtinguishTime * 2.f)), 0.f, 1.f);
+    // Full credit is available at or below ideal time. Beyond ideal time,
+    // exponential decay provides a forgiving, tunable tail without a cliff.
+    const auto GetTimeRatio = [this](float Time, float IdealTime)
+    {
+        if (Time <= IdealTime)
+            return 1.f;
 
-    return FMath::RoundToInt(
-        (AlertRatio * AlertScoreWeight) + (ExtRatio * ExtinguishScoreWeight));
+        const float DecayTime = FMath::Max(IdealTime * TimeScoreDecayMultiplier, 0.01f);
+        const float Tail = FMath::Exp(-(Time - IdealTime) / DecayTime);
+        return FMath::Clamp(Tail, FMath::Clamp(MinimumTimeScoreRatio, 0.f, 1.f), 1.f);
+    };
+
+    const float AlertRatio = bBuzzerWasPressed ? GetTimeRatio(AlertTime, IdealAlertTime) : 0.f;
+    const float EffectiveIdealExtinguishTime = IdealExtinguishTime +
+        FMath::Max(0, TotalFiresSpawned - InitialFireCount) * ExpectedSecondsPerExtraFire;
+    const float ExtinguishRatio = GetTimeRatio(ExtinguishTime, EffectiveIdealExtinguishTime);
+    const float AccuracyRatio = AimAccuracySampleCount > 0
+        ? FMath::Clamp(AverageAimAccuracy, 0.f, 1.f)
+        : 1.f;
+
+    const float AlertScore = AlertRatio * AlertScoreWeight;
+    const float ExtinguishScore = ExtinguishRatio * ExtinguishScoreWeight;
+    const float AccuracyScore = AccuracyRatio * AccuracyScoreWeight;
+    const int32 FinalScore = FMath::Clamp(FMath::RoundToInt(
+        AlertScore + ExtinguishScore + AccuracyScore), 0, 100);
+
+    UE_LOG(LogTemp, Warning,
+        TEXT("SimulationManager: Components - AlertScore=%.1f  ExtinguishScore=%.1f  AccuracyScore=%.1f  FinalScore=%d"),
+        AlertScore, ExtinguishScore, AccuracyScore, FinalScore);
+
+    return FinalScore;
+}
+
+void AVRSimulationManager::RegisterFireSpawned()
+{
+    ++TotalFiresSpawned;
+    if (CurrentPhase == 0)
+        ++InitialFireCount;
+}
+
+void AVRSimulationManager::RecordAimAccuracySample(float Effectiveness)
+{
+    if (!IsSimulationActive()) return;
+
+    AimAccuracySampleTotal += FMath::Clamp(Effectiveness, 0.f, 1.f);
+    ++AimAccuracySampleCount;
+    AverageAimAccuracy = AimAccuracySampleTotal / AimAccuracySampleCount;
 }
 
 void AVRSimulationManager::SetPhase(int32 NewPhase)
@@ -214,3 +262,5 @@ void AVRSimulationManager::SetPhase(int32 NewPhase)
         UE_LOG(LogTemp, Warning,
             TEXT("SimulationManager: Phase -> %s"), PhaseNames[NewPhase]);
 }
+
+

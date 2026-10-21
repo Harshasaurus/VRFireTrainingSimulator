@@ -67,16 +67,34 @@ public:
     // ----------------------------------------------------------------
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulation|Scoring")
-    float AlertScoreWeight = 40.f;
+    float AlertScoreWeight = 30.f;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulation|Scoring")
-    float ExtinguishScoreWeight = 60.f;
+    float ExtinguishScoreWeight = 50.f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulation|Scoring")
+    float AccuracyScoreWeight = 20.f;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulation|Scoring")
     float IdealAlertTime = 10.f;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulation|Scoring")
     float IdealExtinguishTime = 20.f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulation|Scoring")
+    float ExpectedSecondsPerExtraFire = 4.f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulation|Scoring")
+    float TimeScoreDecayMultiplier = 1.f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulation|Scoring")
+    float MinimumTimeScoreRatio = 0.05f;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Simulation|Scoring")
+    float AverageAimAccuracy = 1.f;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Simulation|Scoring")
+    int32 TotalFiresSpawned = 0;
 
     // ----------------------------------------------------------------
     // Delegates
@@ -122,6 +140,9 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Simulation")
     bool IsSimulationActive() const { return CurrentPhase == 1 || CurrentPhase == 2; }
 
+    void RegisterFireSpawned();
+    void RecordAimAccuracySample(float Effectiveness);
+
 protected:
     virtual void BeginPlay() override;
 
@@ -134,6 +155,11 @@ private:
 
     int32 CalculateScore(float AlertTime, float ExtinguishTime) const;
     void SetPhase(int32 NewPhase);
+
+    int32 InitialFireCount = 0;
+    float AimAccuracySampleTotal = 0.f;
+    int32 AimAccuracySampleCount = 0;
+    bool bBuzzerWasPressed = false;
 
     // Spawned fire actors - kept so we can destroy on reset
     TArray<AActor*> SpawnedFires;
