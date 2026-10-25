@@ -1,9 +1,12 @@
 #include "VRFireExtinguisher.h"
 #include "VRFire.h"
 #include "VRSimulationManager.h"
+#include "VRAimWidget.h"
 #include "Components/SphereComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Components/WidgetComponent.h"
 #include "Kismet/GameplayStatics.h"
+#include "Camera/PlayerCameraManager.h"
 #include "Particles/ParticleSystemComponent.h"
 #include "DrawDebugHelpers.h"
 
@@ -14,6 +17,16 @@ AVRFireExtinguisher::AVRFireExtinguisher()
     SprayParticle = CreateDefaultSubobject<UParticleSystemComponent>(TEXT("SprayParticle"));
     SprayParticle->SetupAttachment(RootComponent);
     SprayParticle->SetAutoActivate(false);
+
+    AimWidgetComp = CreateDefaultSubobject<UWidgetComponent>(TEXT("AimWidgetComp"));
+    AimWidgetComp->SetupAttachment(RootComponent);
+    AimWidgetComp->SetWidgetClass(UVRAimWidget::StaticClass());
+    AimWidgetComp->SetWidgetSpace(EWidgetSpace::World);
+    AimWidgetComp->SetDrawSize(FVector2D(400, 200));
+    AimWidgetComp->SetRelativeLocation(FVector(0, 0, 40));
+    AimWidgetComp->SetRelativeScale3D(FVector(0.15f));
+    AimWidgetComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    AimWidgetComp->SetVisibility(false);
 }
 
 void AVRFireExtinguisher::BeginPlay()
@@ -27,6 +40,8 @@ void AVRFireExtinguisher::Tick(float DeltaTime)
 
     if (bIsSpraying)
         SprayTick(DeltaTime);
+
+    UpdateAimWidget();
 }
 
 void AVRFireExtinguisher::Grab(USceneComponent* AttachTo)
@@ -68,6 +83,7 @@ void AVRFireExtinguisher::StartSpray()
     if (!bPinPulled) return;
 
     bIsSpraying = true;
+    UpdateSprayColor(1.0f, false);
     SprayParticle->Activate();
     UE_LOG(LogTemp, Warning, TEXT("Spraying!"));
 
@@ -91,9 +107,10 @@ void AVRFireExtinguisher::SprayTick(float DeltaTime)
     UGameplayStatics::GetAllActorsOfClass(GetWorld(),
         AVRFire::StaticClass(), FireActors);
 
-    // NEW: track the best aim this tick, across every fire in range —
+    // NEW: track the best aim this tick, across every fire in range ?
     // this is what gets reported back for player feedback
     float BestEffectivenessThisTick = 0.0f;
+    bool bFireInRange = false;
 
     for (AActor* Actor : FireActors)
     {
@@ -105,6 +122,8 @@ void AVRFireExtinguisher::SprayTick(float DeltaTime)
 
         if (Distance <= SprayRange)
         {
+            bFireInRange = true;
+
             // Scale extinguish effect by how well the nozzle is aimed.
             // Perfectly aimed = 1.0 (full rate), badly aimed = fades to 0.0.
             float AimEffectiveness = GetAimEffectiveness(Fire->GetActorLocation());
@@ -141,6 +160,7 @@ void AVRFireExtinguisher::SprayTick(float DeltaTime)
     // fire is currently in range (effectiveness just reads 0.0 in that case)
     CurrentAimEffectiveness = BestEffectivenessThisTick;
     OnAimEffectivenessChanged.Broadcast(CurrentAimEffectiveness);
+    UpdateSprayColor(CurrentAimEffectiveness, bFireInRange);
 
     TArray<AActor*> Managers;
     UGameplayStatics::GetAllActorsOfClass(
@@ -153,15 +173,213 @@ void AVRFireExtinguisher::SprayTick(float DeltaTime)
     }
 }
 
+FLinearColor AVRFireExtinguisher::GetAimColor(float Effectiveness) const
+{
+    if (Effectiveness >= GoodAimThreshold)
+    {
+        return FLinearColor::White;
+    }
+
+    if (Effectiveness >= PartialAimThreshold)
+    {
+        return FLinearColor(1.f, 1.f, 0.f);
+    }
+
+    return FLinearColor::Red;
+}
+
+void AVRFireExtinguisher::UpdateAimWidget()
+{
+    if (!AimWidgetComp)
+    {
+        return;
+    }
+
+    const bool bShow = bShowAimWidget && bIsGrabbed && bPinPulled;
+    AimWidgetComp->SetVisibility(bShow);
+    if (!bShow)
+    {
+        return;
+    }
+
+    TArray<AActor*> FireActors;
+    UGameplayStatics::GetAllActorsOfClass(GetWorld(), AVRFire::StaticClass(), FireActors);
+
+    AVRFire* NearestFire = nullptr;
+    float BestDistanceSquared = MAX_FLT;
+    for (AActor* Actor : FireActors)
+    {
+        AVRFire* Fire = Cast<AVRFire>(Actor);
+        if (!Fire)
+        {
+            continue;
+        }
+
+        const float DistanceSquared = FVector::DistSquared(GetActorLocation(), Fire->GetActorLocation());
+        if (DistanceSquared < BestDistanceSquared)
+        {
+            BestDistanceSquared = DistanceSquared;
+            NearestFire = Fire;
+        }
+    }
+
+    UVRAimWidget* AimWidget = Cast<UVRAimWidget>(AimWidgetComp->GetUserWidgetObject());
+    if (!AimWidget)
+    {
+        return;
+    }
+
+    if (!NearestFire)
+    {
+        CurrentAimAngle = -1.0f;
+        AimWidget->SetAim(-1, FLinearColor::White, TEXT("No fire"));
+    }
+    else
+    {
+        const FVector FireLocation = NearestFire->GetActorLocation();
+        const float Effectiveness = GetAimEffectiveness(FireLocation);
+        float Pitch = 0.0f;
+        float PitchError = 0.0f;
+        float YawError = 0.0f;
+        float YawSigned = 0.0f;
+        FString Hint;
+
+        if (bUsePitchAim)
+        {
+            GetAimErrors(FireLocation, Pitch, PitchError, YawError, YawSigned);
+            CurrentAimAngle = Pitch;
+
+            if (YawError > AimToleranceAngle)
+            {
+                Hint = YawSigned > 0.0f ? TEXT("Turn RIGHT") : TEXT("Turn LEFT");
+            }
+            else if (PitchError > AimToleranceAngle)
+            {
+                Hint = Pitch < GetTargetPitch(FireLocation) ? TEXT("Aim DOWN") : TEXT("Aim UP");
+            }
+            else
+            {
+                Hint = TEXT("ON TARGET");
+            }
+        }
+        else
+        {
+            const FVector Local = GetActorTransform()
+                .InverseTransformVectorNoScale(FireLocation - GetActorLocation()).GetSafeNormal();
+            CurrentAimAngle = FMath::RadiansToDegrees(
+                FMath::Acos(FMath::Clamp(Local.X, -1.0f, 1.0f)));
+
+            if (CurrentAimAngle <= AimToleranceAngle)
+            {
+                Hint = TEXT("ON TARGET");
+            }
+            else if (FMath::Abs(Local.Y) > FMath::Abs(Local.Z))
+            {
+                Hint = Local.Y > 0.0f ? TEXT("Turn RIGHT") : TEXT("Turn LEFT");
+            }
+            else
+            {
+                Hint = Local.Z > 0.0f ? TEXT("Aim UP") : TEXT("Aim DOWN");
+            }
+        }
+
+        AimWidget->SetAim(FMath::Max(0, FMath::RoundToInt(CurrentAimAngle)), GetAimColor(Effectiveness), Hint);
+    }
+
+    if (APlayerCameraManager* CameraManager = UGameplayStatics::GetPlayerCameraManager(this, 0))
+    {
+        AimWidgetComp->SetWorldRotation(
+            (CameraManager->GetCameraLocation() - AimWidgetComp->GetComponentLocation()).Rotation());
+    }
+}
+void AVRFireExtinguisher::UpdateSprayColor(float Effectiveness, bool bFireInRange)
+{
+    if (!SprayParticle) return;
+
+    FLinearColor Color = FLinearColor::White;
+    if (bFireInRange)
+    {
+        if (Effectiveness >= GoodAimThreshold)
+        {
+            Color = FLinearColor::White;
+        }
+        else if (Effectiveness >= PartialAimThreshold)
+        {
+            Color = FLinearColor(1.f, 1.f, 0.f);
+        }
+        else
+        {
+            Color = FLinearColor::Red;
+        }
+    }
+
+    SprayParticle->SetColorParameter(SprayColorParameterName, Color);
+}
+
 // ----------------------------------------------------------------
 // NEW: Aim accuracy check
 // ----------------------------------------------------------------
 
+float AVRFireExtinguisher::GetTargetPitch(const FVector& FireLocation) const
+{
+    if (!bTargetFirePitch)
+    {
+        return TargetPitchAngle;
+    }
+
+    const FVector Dir = (FireLocation - GetActorLocation()).GetSafeNormal();
+    return FMath::RadiansToDegrees(
+        FMath::Asin(FMath::Clamp(-Dir.Z, -1.0f, 1.0f))) + FirePitchBias;
+}
+
+void AVRFireExtinguisher::GetAimErrors(const FVector& FireLocation, float& OutPitch, float& OutPitchError, float& OutYawError, float& OutYawSigned) const
+{
+    const FVector Fwd = GetActorForwardVector();
+    OutPitch = FMath::RadiansToDegrees(FMath::Asin(FMath::Clamp(-Fwd.Z, -1.0f, 1.0f)));
+    OutPitchError = FMath::Abs(OutPitch - GetTargetPitch(FireLocation));
+
+    const FVector ActorLocation = GetActorLocation();
+    const FVector F2D = FVector(Fwd.X, Fwd.Y, 0.0f).GetSafeNormal();
+    const FVector T2D = FVector(FireLocation.X - ActorLocation.X, FireLocation.Y - ActorLocation.Y, 0.0f).GetSafeNormal();
+    if (F2D.IsNearlyZero() || T2D.IsNearlyZero())
+    {
+        OutYawError = 0.0f;
+        OutYawSigned = 0.0f;
+        return;
+    }
+
+    OutYawError = FMath::RadiansToDegrees(
+        FMath::Acos(FMath::Clamp(FVector::DotProduct(F2D, T2D), -1.0f, 1.0f)));
+    OutYawSigned = FVector::CrossProduct(F2D, T2D).Z >= 0.0f ? OutYawError : -OutYawError;
+}
 float AVRFireExtinguisher::GetAimEffectiveness(const FVector& FireLocation) const
 {
+    if (bUsePitchAim)
+    {
+        float Pitch = 0.0f;
+        float PitchError = 0.0f;
+        float YawError = 0.0f;
+        float YawSigned = 0.0f;
+        GetAimErrors(FireLocation, Pitch, PitchError, YawError, YawSigned);
+
+        const auto Fade = [this](float A) -> float
+            {
+                if (A <= AimToleranceAngle)
+                {
+                    return 1.0f;
+                }
+                if (A >= AimFalloffAngle)
+                {
+                    return 0.0f;
+                }
+                return 1.0f - (A - AimToleranceAngle) / (AimFalloffAngle - AimToleranceAngle);
+            };
+
+        return FMath::Min(Fade(PitchError), Fade(YawError));
+    }
     // Direction the nozzle is actually pointing.
     // Assumes the extinguisher mesh's forward (+X) axis points out the
-    // nozzle — if your mesh's forward axis is different, rotate the mesh
+    // nozzle ? if your mesh's forward axis is different, rotate the mesh
     // in the editor or adjust this to use a dedicated nozzle socket instead.
     FVector NozzleForward = GetActorForwardVector();
 
@@ -174,11 +392,11 @@ float AVRFireExtinguisher::GetAimEffectiveness(const FVector& FireLocation) cons
 
     if (AngleDegrees <= AimToleranceAngle)
     {
-        return 1.0f; // dead on target — full effectiveness
+        return 1.0f; // dead on target ? full effectiveness
     }
     else if (AngleDegrees >= AimFalloffAngle)
     {
-        return 0.0f; // too far off — no effect at all
+        return 0.0f; // too far off ? no effect at all
     }
     else
     {
