@@ -8,7 +8,6 @@
 #include "Kismet/GameplayStatics.h"
 #include "Camera/PlayerCameraManager.h"
 #include "Particles/ParticleSystemComponent.h"
-#include "DrawDebugHelpers.h"
 
 AVRFireExtinguisher::AVRFireExtinguisher()
 {
@@ -107,8 +106,6 @@ void AVRFireExtinguisher::SprayTick(float DeltaTime)
     UGameplayStatics::GetAllActorsOfClass(GetWorld(),
         AVRFire::StaticClass(), FireActors);
 
-    // NEW: track the best aim this tick, across every fire in range ?
-    // this is what gets reported back for player feedback
     float BestEffectivenessThisTick = 0.0f;
     bool bFireInRange = false;
 
@@ -135,29 +132,9 @@ void AVRFireExtinguisher::SprayTick(float DeltaTime)
 
             BestEffectivenessThisTick = FMath::Max(BestEffectivenessThisTick, AimEffectiveness);
 
-            if (bDrawDebugAim)
-            {
-                FColor LineColor = FColor::MakeRedToGreenColorFromScalar(AimEffectiveness);
-                DrawDebugLine(GetWorld(), GetActorLocation(), Fire->GetActorLocation(),
-                    LineColor, false, -1.f, 0, 2.f);
-
-                // NEW: direct text readout, since debug lines don't always
-                // render through the VR/HMD viewport. Shows up in Output Log.
-                FVector NozzleForward = GetActorForwardVector();
-                FVector DirectionToFire = (Fire->GetActorLocation() - GetActorLocation()).GetSafeNormal();
-                float Dot = FVector::DotProduct(NozzleForward, DirectionToFire);
-                float AngleDeg = FMath::RadiansToDegrees(FMath::Acos(FMath::Clamp(Dot, -1.0f, 1.0f)));
-
-                UE_LOG(LogTemp, Warning,
-                    TEXT("AIM DEBUG | Angle: %.1f deg | Effectiveness: %.2f | NozzleFwd: %s | ToFire: %s"),
-                    AngleDeg, AimEffectiveness,
-                    *NozzleForward.ToString(), *DirectionToFire.ToString());
-            }
         }
     }
 
-    // NEW: report aim quality back every tick while spraying, even if no
-    // fire is currently in range (effectiveness just reads 0.0 in that case)
     CurrentAimEffectiveness = BestEffectivenessThisTick;
     OnAimEffectivenessChanged.Broadcast(CurrentAimEffectiveness);
     UpdateSprayColor(CurrentAimEffectiveness, bFireInRange);
@@ -315,10 +292,6 @@ void AVRFireExtinguisher::UpdateSprayColor(float Effectiveness, bool bFireInRang
 
     SprayParticle->SetColorParameter(SprayColorParameterName, Color);
 }
-
-// ----------------------------------------------------------------
-// NEW: Aim accuracy check
-// ----------------------------------------------------------------
 
 float AVRFireExtinguisher::GetTargetPitch(const FVector& FireLocation) const
 {
