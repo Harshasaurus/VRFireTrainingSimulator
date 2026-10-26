@@ -18,7 +18,10 @@ public class VRFireSimulationToolkit : ModuleRules
 			"EnhancedInput",
 			"HeadMountedDisplay",
 			"NavigationSystem",       // if fire spread / NavMesh queries are needed later
-			"VRInteractionToolkit"    // for AVRGrabbable base class
+			"VRInteractionToolkit",    // for AVRGrabbable base class
+			"UMG",
+			"Slate",
+			"SlateCore"
 		});
 
 		PrivateDependencyModuleNames.AddRange(new string[] { });

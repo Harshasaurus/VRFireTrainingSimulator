@@ -31,7 +31,6 @@ void AVRWorkerNPC::BeginPlay()
                 UE_LOG(LogTemp, Error, TEXT("VRWorkerNPC: %s — no AIController after delay!"), *GetName());
                 return;
             }
-            UE_LOG(LogTemp, Warning, TEXT("VRWorkerNPC: %s AIController ready, starting wander."), *GetName());
             StartWander();
         }, 2.0f, false);
 }
@@ -62,9 +61,7 @@ void AVRWorkerNPC::StartWander()
         AIController->MoveToLocation(RandomPoint, AcceptanceRadius,
             true, true, false, true);
 
-    UE_LOG(LogTemp, Warning, TEXT("VRWorkerNPC: %s wandering to %s (result: %d)"),
-        *GetName(), *RandomPoint.ToString(), (int32)Result);
-
+    (void)Result;
     bIsWaiting = false;
 }
 
@@ -87,8 +84,6 @@ void AVRWorkerNPC::WanderTick(float DeltaTime)
     {
         bIsWaiting = true;
         WanderWaitTimer = WanderWaitTime;
-        UE_LOG(LogTemp, Warning, TEXT("VRWorkerNPC: %s reached wander point, waiting %.1fs"),
-            *GetName(), WanderWaitTime);
     }
 }
 
@@ -98,7 +93,6 @@ void AVRWorkerNPC::OnAlarmTriggered()
 {
     if (CurrentState != EWorkerState::Idle)
     {
-        UE_LOG(LogTemp, Warning, TEXT("VRWorkerNPC: %s alarm received but not Idle — ignoring."), *GetName());
         return;
     }
 
@@ -125,8 +119,6 @@ void AVRWorkerNPC::MoveToExit()
     MoveRequest.SetAcceptanceRadius(AcceptanceRadius);
     AIController->MoveTo(MoveRequest);
 
-    UE_LOG(LogTemp, Warning, TEXT("VRWorkerNPC: %s evacuating to: %s"),
-        *GetName(), *ExitPoint->GetName());
 }
 
 void AVRWorkerNPC::CheckIfReachedExit()
@@ -151,17 +143,14 @@ void AVRWorkerNPC::SetState(EWorkerState NewState)
     {
     case EWorkerState::Idle:
         GetCharacterMovement()->MaxWalkSpeed = IdleWalkSpeed;
-        UE_LOG(LogTemp, Warning, TEXT("VRWorkerNPC: %s -> Idle"), *GetName());
         break;
 
     case EWorkerState::Panicking:
         GetCharacterMovement()->MaxWalkSpeed = PanicRunSpeed;
-        UE_LOG(LogTemp, Warning, TEXT("VRWorkerNPC: %s -> Panicking"), *GetName());
         break;
 
     case EWorkerState::Evacuated:
         GetCharacterMovement()->MaxWalkSpeed = 0.f;
-        UE_LOG(LogTemp, Warning, TEXT("VRWorkerNPC: %s -> Evacuated"), *GetName());
         break;
     }
 }
@@ -179,5 +168,4 @@ void AVRWorkerNPC::ResetNPC()
     SetState(EWorkerState::Idle);
     StartWander();
 
-    UE_LOG(LogTemp, Warning, TEXT("VRWorkerNPC: %s reset to Idle."), *GetName());
 }

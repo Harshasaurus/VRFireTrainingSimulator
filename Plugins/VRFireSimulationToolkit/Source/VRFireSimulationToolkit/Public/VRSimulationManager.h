@@ -62,6 +62,10 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulation|Fire")
     float FireSpawnDelay = 12.f;
 
+    // When true, StartSimulation() is ignored until BeginScenarioFromMenu() is called (used by the Start menu).
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulation")
+    bool bRequireManualStart = false;
+
     // ----------------------------------------------------------------
     // Scoring weights
     // ----------------------------------------------------------------
@@ -118,6 +122,9 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Simulation")
     void StartSimulation();
 
+    UFUNCTION(BlueprintCallable, Category = "Simulation")
+    void BeginScenarioFromMenu();
+
     // Called by AVRBuzzer
     UFUNCTION(BlueprintCallable, Category = "Simulation")
     void OnBuzzerPressed();
@@ -160,6 +167,7 @@ private:
     float AimAccuracySampleTotal = 0.f;
     int32 AimAccuracySampleCount = 0;
     bool bBuzzerWasPressed = false;
+    bool bManualStartGranted = false;
 
     // Spawned fire actors - kept so we can destroy on reset
     TArray<AActor*> SpawnedFires;

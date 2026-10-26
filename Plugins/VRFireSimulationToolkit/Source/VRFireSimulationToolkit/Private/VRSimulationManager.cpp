@@ -25,6 +25,12 @@ void AVRSimulationManager::Tick(float DeltaTime)
 
 void AVRSimulationManager::StartSimulation()
 {
+    if (bRequireManualStart && !bManualStartGranted)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("SimulationManager: StartSimulation ignored, waiting for menu Start."));
+        return;
+    }
+
     if (CurrentPhase != 0)
     {
         UE_LOG(LogTemp, Warning,
@@ -58,6 +64,12 @@ void AVRSimulationManager::StartSimulation()
         FireSpawnDelay,
         false  // don't loop
     );
+}
+
+void AVRSimulationManager::BeginScenarioFromMenu()
+{
+    bManualStartGranted = true;
+    StartSimulation();
 }
 
 void AVRSimulationManager::OnBuzzerPressed()
@@ -132,6 +144,7 @@ void AVRSimulationManager::ResetSimulation()
     AimAccuracySampleCount = 0;
     AverageAimAccuracy = 1.f;
     bBuzzerWasPressed = false;
+    bManualStartGranted = false;
 
     SetPhase(0);
 
