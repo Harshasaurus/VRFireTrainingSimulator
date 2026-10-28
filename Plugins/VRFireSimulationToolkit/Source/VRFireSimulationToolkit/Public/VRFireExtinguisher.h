@@ -30,14 +30,30 @@ public:
     UPROPERTY(BlueprintReadOnly, Category = "Extinguisher")
     bool bPinPulled = false;
 
-    // Within this angle (degrees) of the fire, spray is at full effectiveness
+    // Within this horizontal angle (degrees) of the fire, spray is at full effectiveness
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Extinguisher|Aim")
     float AimToleranceAngle = 15.0f;
 
-    // Beyond this angle (degrees), spray has zero effect on the fire.
+    // Beyond this horizontal angle (degrees), spray has zero effect on the fire.
     // Between AimToleranceAngle and this, effectiveness fades linearly.
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Extinguisher|Aim")
     float AimFalloffAngle = 40.0f;
+
+    // Separate pitch tolerance (degrees): within this difference from target pitch, effectiveness is 1.0.
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Extinguisher|Aim")
+    float PitchToleranceAngle = 30.0f;
+
+    // Separate pitch falloff (degrees): beyond this difference, pitch effectiveness drops to 0.0.
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Extinguisher|Aim")
+    float PitchFalloffAngle = 60.0f;
+
+    // If true, vertical aim error is ignored completely and only horizontal (yaw) error counts.
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Extinguisher|Aim")
+    bool bIgnorePitch = false;
+
+    // Height offset added to the fire actor location (cm) to aim at the body of the flames rather than the floor pivot.
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Extinguisher|Aim")
+    float FireAimHeightOffset = 60.0f;
 
     // The particle system needs a Color parameter with this name.
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Extinguisher|Aim")
@@ -49,7 +65,7 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Extinguisher|Aim")
     float PartialAimThreshold = 0.4f;
 
-    // Pitch-based aim uses a 45-degree downward target while preserving horizontal yaw alignment.
+    // Pitch-based aim uses a downward target while preserving horizontal yaw alignment.
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Extinguisher|Aim")
     bool bUsePitchAim = true;
 
@@ -63,6 +79,10 @@ public:
     // Extra degrees added to the ideal fire pitch when bTargetFirePitch is true.
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Extinguisher|Aim")
     float FirePitchBias = 0.0f;
+
+    // If true, draws debug aim lines and outputs AIM DEBUG and AIM2 log lines while spraying.
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Extinguisher|Aim")
+    bool bDrawDebugAim = true;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Extinguisher|Aim")
     UWidgetComponent* AimWidgetComp;
@@ -94,6 +114,9 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "Extinguisher")
     void StopSpray();
+
+    UFUNCTION(BlueprintCallable, Category = "Extinguisher|Aim")
+    void LogAimDebug(const FVector& FireLocation, float Effectiveness) const;
 
     UPROPERTY(BlueprintAssignable, Category = "Extinguisher")
     FOnExtinguisherGrabbed OnExtinguisherGrabbed;

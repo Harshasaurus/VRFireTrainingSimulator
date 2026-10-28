@@ -1,7 +1,9 @@
 #include "VRMenuWidget.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/Border.h"
+#include "Components/BorderSlot.h"
 #include "Components/Button.h"
+#include "Components/ButtonSlot.h"
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
@@ -9,13 +11,119 @@
 #include "Components/HorizontalBoxSlot.h"
 #include "Components/SizeBox.h"
 #include "Components/SizeBoxSlot.h"
-#include "Components/BorderSlot.h"
+#include "Components/Overlay.h"
+#include "Components/OverlaySlot.h"
+#include "Components/Spacer.h"
+#include "Components/ScrollBox.h"
 #include "Brushes/SlateColorBrush.h"
 #include "Brushes/SlateRoundedBoxBrush.h"
+#include "Styling/SlateTypes.h"
 
-// ----------------------------------------------------------------
-// Default manual text (edit here, or override via the menu manager's InstructionPages)
-// ----------------------------------------------------------------
+// ════════════════════════════════════════════════════════════════════
+//  COLOUR PALETTE
+//  Cohesive palette defined once here for easy tuning.
+// ════════════════════════════════════════════════════════════════════
+
+namespace VRMenuColors
+{
+    // --- Panel backgrounds ---
+    static const FLinearColor PanelOuter         (0.020f, 0.028f, 0.065f, 0.97f);   // deep navy
+    static const FLinearColor PanelInner         (0.045f, 0.060f, 0.115f, 1.0f);    // slightly lighter card bg
+    static const FLinearColor CardBody           (0.070f, 0.095f, 0.165f, 1.0f);    // instruction body card
+    static const FLinearColor KeyCapBg           (0.120f, 0.160f, 0.260f, 1.0f);    // key-cap chip bg
+
+    // --- Accent ---
+    static const FLinearColor AccentOrange       (1.0f,   0.55f,  0.10f,  1.0f);    // primary accent
+    static const FLinearColor AccentAmber        (1.0f,   0.75f,  0.22f,  1.0f);    // warm gold
+    static const FLinearColor AccentGlow         (1.0f,   0.50f,  0.08f,  0.12f);   // soft title glow
+
+    // --- Divider ---
+    static const FLinearColor DividerOrange      (1.0f,   0.55f,  0.10f,  0.50f);
+
+    // --- Text ---
+    static const FLinearColor TextWhite          (0.95f,  0.95f,  0.95f,  1.0f);
+    static const FLinearColor TextLightGray      (0.78f,  0.80f,  0.84f,  1.0f);
+    static const FLinearColor TextMuted          (0.48f,  0.50f,  0.56f,  1.0f);
+
+    // --- Dot indicator ---
+    static const FLinearColor DotActive          (1.0f,   0.55f,  0.10f,  1.0f);
+    static const FLinearColor DotInactive        (0.25f,  0.28f,  0.35f,  1.0f);
+
+    // --- Button: Primary (START, RESUME) ---
+    static const FLinearColor BtnPrimary         (0.12f,  0.56f,  0.22f,  1.0f);
+    static const FLinearColor BtnPrimaryHover    (0.18f,  0.68f,  0.30f,  1.0f);
+    static const FLinearColor BtnPrimaryPressed  (0.08f,  0.40f,  0.15f,  1.0f);
+
+    // --- Button: Secondary (INSTRUCTIONS) ---
+    static const FLinearColor BtnSecondary       (0.14f,  0.32f,  0.58f,  1.0f);
+    static const FLinearColor BtnSecondaryHover  (0.20f,  0.42f,  0.70f,  1.0f);
+    static const FLinearColor BtnSecondaryPressed(0.09f,  0.22f,  0.42f,  1.0f);
+
+    // --- Button: Destructive (RESTART, BACK) ---
+    static const FLinearColor BtnDanger          (0.68f,  0.17f,  0.12f,  1.0f);
+    static const FLinearColor BtnDangerHover     (0.82f,  0.25f,  0.18f,  1.0f);
+    static const FLinearColor BtnDangerPressed   (0.48f,  0.12f,  0.08f,  1.0f);
+
+    // --- Button: Nav (PREV, NEXT) ---
+    static const FLinearColor BtnNav             (0.18f,  0.20f,  0.27f,  1.0f);
+    static const FLinearColor BtnNavHover        (0.28f,  0.32f,  0.40f,  1.0f);
+    static const FLinearColor BtnNavPressed      (0.12f,  0.14f,  0.19f,  1.0f);
+
+    // --- Badge ---
+    static const FLinearColor BadgeBg            (1.0f,   0.55f,  0.10f,  0.18f);
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  SIZING CONSTANTS
+// ════════════════════════════════════════════════════════════════════
+
+namespace VRMenuSizes
+{
+    static constexpr float PanelCornerRadius      = 20.f;
+    static constexpr float PanelPadding           = 36.f;
+
+    static constexpr float CardCornerRadius       = 14.f;
+    static constexpr float CardPadding            = 28.f;
+
+    static constexpr float ButtonCornerRadius     = 12.f;
+    static constexpr float ButtonWidth            = 640.f;
+    static constexpr float ButtonHeight           = 78.f;
+    static constexpr float NavButtonHeight        = 64.f;
+
+    static constexpr float DividerHeight          = 3.f;
+    static constexpr float DividerWidthFraction   = 0.55f;  // ~55% of panel width
+
+    static constexpr float DotSize                = 10.f;
+    static constexpr float DotActiveSizeExtra     = 2.f;
+    static constexpr float DotSpacing             = 6.f;
+    static constexpr float DotCornerRadius        = 5.f;
+
+    static constexpr float BadgeSize              = 38.f;
+    static constexpr float BadgeCornerRadius      = 19.f;   // circle
+
+    // Body card on instruction page
+    static constexpr float BodyCardWidth          = 910.f;
+    static constexpr float BodyCardHeight         = 345.f;
+
+    // Key-cap chips on CONTROLS page
+    static constexpr float KeyCapRadius           = 6.f;
+    static constexpr int32 KeyCapFontSize         = 18;
+    static constexpr int32 ControlDescFontSize     = 20;
+
+    // Font sizes
+    static constexpr int32 TitleFontSize          = 44;
+    static constexpr int32 SubtitleFontSize       = 24;
+    static constexpr int32 ButtonFontSize         = 30;
+    static constexpr int32 PageTitleFontSize      = 36;
+    static constexpr int32 BodyFontSize           = 22;
+    static constexpr int32 PageNumFontSize        = 17;
+    static constexpr int32 NavButtonFontSize      = 26;
+    static constexpr int32 BadgeFontSize          = 18;
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  DEFAULT MANUAL TEXT
+// ════════════════════════════════════════════════════════════════════
 
 TArray<FVRInstructionPage> UVRMenuWidget::MakeDefaultPages()
 {
@@ -107,12 +215,214 @@ TArray<FVRInstructionPage> UVRMenuWidget::MakeDefaultPages()
     return Out;
 }
 
-// ----------------------------------------------------------------
-// Build
-// ----------------------------------------------------------------
+// ════════════════════════════════════════════════════════════════════
+//  BUTTON STYLING
+// ════════════════════════════════════════════════════════════════════
+
+void UVRMenuWidget::StyleButton(UButton* Btn, const FLinearColor& NormalCol, const FLinearColor& HoveredCol, const FLinearColor& PressedCol, float Radius)
+{
+    if (!Btn) return;
+
+    FButtonStyle Style = Btn->GetStyle();
+
+    // Use FSlateRoundedBoxBrush for each state — gives rounded corners natively.
+    Style.SetNormal(FSlateRoundedBoxBrush(NormalCol, Radius));
+    Style.SetHovered(FSlateRoundedBoxBrush(HoveredCol, Radius));
+    Style.SetPressed(FSlateRoundedBoxBrush(PressedCol, Radius));
+
+    // Remove default press-offset so button content doesn't jump
+    Style.NormalPadding  = FMargin(0.f);
+    Style.PressedPadding = FMargin(0.f);
+
+    Btn->SetStyle(Style);
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  PAGE DOTS
+// ════════════════════════════════════════════════════════════════════
+
+void UVRMenuWidget::BuildPageDots(UHorizontalBox* Container)
+{
+    using namespace VRMenuColors;
+    using namespace VRMenuSizes;
+
+    if (!Container || !WidgetTree) return;
+
+    PageDots.Empty();
+
+    const int32 NumDots = FMath::Max(Pages.Num(), 1);
+    for (int32 i = 0; i < NumDots; ++i)
+    {
+        UBorder* Dot = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(),
+            FName(*FString::Printf(TEXT("Dot_%d"), i)));
+        Dot->SetBrush(FSlateRoundedBoxBrush(DotInactive, DotCornerRadius));
+
+        USizeBox* DotBox = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(),
+            FName(*FString::Printf(TEXT("DotBox_%d"), i)));
+        DotBox->SetWidthOverride(DotSize);
+        DotBox->SetHeightOverride(DotSize);
+        DotBox->SetContent(Dot);
+
+        if (UHorizontalBoxSlot* S = Container->AddChildToHorizontalBox(DotBox))
+        {
+            S->SetPadding(FMargin(DotSpacing * 0.5f, 0.f));
+            S->SetHorizontalAlignment(HAlign_Center);
+            S->SetVerticalAlignment(VAlign_Center);
+        }
+
+        PageDots.Add(Dot);
+    }
+}
+
+void UVRMenuWidget::UpdatePageDots()
+{
+    using namespace VRMenuColors;
+    using namespace VRMenuSizes;
+
+    for (int32 i = 0; i < PageDots.Num(); ++i)
+    {
+        if (!PageDots[i]) continue;
+
+        const bool bActive = (i == CurrentPage);
+        const FLinearColor Color = bActive ? DotActive : DotInactive;
+        PageDots[i]->SetBrush(FSlateRoundedBoxBrush(Color, DotCornerRadius));
+
+        if (USizeBox* Box = Cast<USizeBox>(PageDots[i]->GetParent()))
+        {
+            const float Size = bActive ? (DotSize + DotActiveSizeExtra) : DotSize;
+            Box->SetWidthOverride(Size);
+            Box->SetHeightOverride(Size);
+        }
+    }
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  CONTROLS KEY-CAP ROWS
+// ════════════════════════════════════════════════════════════════════
+
+void UVRMenuWidget::BuildControlsRows(UVerticalBox* Container)
+{
+    using namespace VRMenuColors;
+    using namespace VRMenuSizes;
+
+    if (!Container || !WidgetTree) return;
+
+    ControlKeyTexts.Empty();
+    ControlDescTexts.Empty();
+    ControlRowBoxes.Empty();
+
+    constexpr int32 MaxControlRows = 8;
+    for (int32 i = 0; i < MaxControlRows; ++i)
+    {
+        UHorizontalBox* Row = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(),
+            FName(*FString::Printf(TEXT("CtrlRow_%d"), i)));
+
+        // Key-cap chip border
+        UBorder* Chip = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(),
+            FName(*FString::Printf(TEXT("CtrlChip_%d"), i)));
+        Chip->SetBrush(FSlateRoundedBoxBrush(KeyCapBg, KeyCapRadius));
+        Chip->SetPadding(FMargin(12.f, 4.f));
+
+        UTextBlock* KeyText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(),
+            FName(*FString::Printf(TEXT("CtrlKey_%d"), i)));
+        FSlateFontInfo KeyFont = KeyText->GetFont();
+        KeyFont.Size = KeyCapFontSize;
+        KeyFont.TypefaceFontName = FName(TEXT("Bold"));
+        KeyText->SetFont(KeyFont);
+        KeyText->SetColorAndOpacity(FSlateColor(AccentAmber));
+        KeyText->SetJustification(ETextJustify::Center);
+        KeyText->SetAutoWrapText(false);
+        Chip->SetContent(KeyText);
+
+        if (UBorderSlot* ChipSlot = Cast<UBorderSlot>(Chip->GetContentSlot()))
+        {
+            ChipSlot->SetHorizontalAlignment(HAlign_Center);
+            ChipSlot->SetVerticalAlignment(VAlign_Center);
+        }
+
+        if (UHorizontalBoxSlot* ChipHSlot = Row->AddChildToHorizontalBox(Chip))
+        {
+            ChipHSlot->SetVerticalAlignment(VAlign_Center);
+            ChipHSlot->SetPadding(FMargin(0.f, 0.f, 16.f, 0.f));
+        }
+
+        // Action description text
+        UTextBlock* DescText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(),
+            FName(*FString::Printf(TEXT("CtrlDesc_%d"), i)));
+        FSlateFontInfo DescFont = DescText->GetFont();
+        DescFont.Size = ControlDescFontSize;
+        DescText->SetFont(DescFont);
+        DescText->SetColorAndOpacity(FSlateColor(TextWhite));
+        DescText->SetJustification(ETextJustify::Left);
+        DescText->SetAutoWrapText(false);
+
+        if (UHorizontalBoxSlot* DescHSlot = Row->AddChildToHorizontalBox(DescText))
+        {
+            DescHSlot->SetVerticalAlignment(VAlign_Center);
+            DescHSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+        }
+
+        if (UVerticalBoxSlot* RowVSlot = Container->AddChildToVerticalBox(Row))
+        {
+            RowVSlot->SetPadding(FMargin(0.f, 3.f));
+            RowVSlot->SetHorizontalAlignment(HAlign_Fill);
+        }
+
+        ControlKeyTexts.Add(KeyText);
+        ControlDescTexts.Add(DescText);
+        ControlRowBoxes.Add(Row);
+    }
+}
+
+void UVRMenuWidget::UpdateControlsPage(const FText& BodyText)
+{
+    TArray<FString> Lines;
+    BodyText.ToString().ParseIntoArrayLines(Lines);
+
+    for (int32 i = 0; i < ControlRowBoxes.Num(); ++i)
+    {
+        if (!ControlRowBoxes[i]) continue;
+
+        if (i < Lines.Num())
+        {
+            const FString& Line = Lines[i];
+            FString KeyPart, DescPart;
+
+            if (Line.Split(TEXT("  -  "), &KeyPart, &DescPart) || Line.Split(TEXT(" - "), &KeyPart, &DescPart))
+            {
+                if (ControlKeyTexts.IsValidIndex(i) && ControlKeyTexts[i])
+                    ControlKeyTexts[i]->SetText(FText::FromString(KeyPart.TrimStartAndEnd()));
+
+                if (ControlDescTexts.IsValidIndex(i) && ControlDescTexts[i])
+                    ControlDescTexts[i]->SetText(FText::FromString(DescPart.TrimStartAndEnd()));
+            }
+            else
+            {
+                if (ControlKeyTexts.IsValidIndex(i) && ControlKeyTexts[i])
+                    ControlKeyTexts[i]->SetText(FText::GetEmpty());
+
+                if (ControlDescTexts.IsValidIndex(i) && ControlDescTexts[i])
+                    ControlDescTexts[i]->SetText(FText::FromString(Line.TrimStartAndEnd()));
+            }
+
+            ControlRowBoxes[i]->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+        }
+        else
+        {
+            ControlRowBoxes[i]->SetVisibility(ESlateVisibility::Collapsed);
+        }
+    }
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  BUILD
+// ════════════════════════════════════════════════════════════════════
 
 TSharedRef<SWidget> UVRMenuWidget::RebuildWidget()
 {
+    using namespace VRMenuColors;
+    using namespace VRMenuSizes;
+
     if (!WidgetTree)
         WidgetTree = NewObject<UWidgetTree>(this, TEXT("WidgetTree"), RF_Transient);
 
@@ -121,24 +431,40 @@ TSharedRef<SWidget> UVRMenuWidget::RebuildWidget()
 
     if (!WidgetTree->RootWidget)
     {
-        UBorder* Bg = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), TEXT("Bg"));
-        Bg->SetBrush(FSlateRoundedBoxBrush(FLinearColor(0.03f, 0.05f, 0.10f, 0.96f), 24.f));
-        Bg->SetPadding(FMargin(40.f));
-        WidgetTree->RootWidget = Bg;
-
-        UVerticalBox* Root = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("Root"));
-        Bg->SetContent(Root);
-
-        auto MakeText = [&](const FString& Name, int32 Size, const FLinearColor& Color, ETextJustify::Type Just) -> UTextBlock*
+        // ──────────────────────────────────────────────
+        //  Helper lambdas
+        // ──────────────────────────────────────────────
+        auto MakeText = [&](const FString& Name, int32 Size, const FLinearColor& Color,
+            ETextJustify::Type Just, bool bBold = false) -> UTextBlock*
             {
                 UTextBlock* T = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), FName(*Name));
                 FSlateFontInfo Font = T->GetFont();
                 Font.Size = Size;
+                if (bBold)
+                    Font.TypefaceFontName = FName(TEXT("Bold"));
                 T->SetFont(Font);
                 T->SetColorAndOpacity(FSlateColor(Color));
                 T->SetJustification(Just);
                 T->SetAutoWrapText(true);
                 return T;
+            };
+
+        auto MakeStyledButton = [&](const FString& Name, const TCHAR* Label, int32 FontSize,
+            const FLinearColor& NormalCol, const FLinearColor& HoverCol, const FLinearColor& PressCol,
+            bool bBold = true) -> UButton*
+            {
+                UButton* B = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), FName(*Name));
+                UTextBlock* L = MakeText(Name + TEXT("_Label"), FontSize, TextWhite, ETextJustify::Center, bBold);
+                L->SetText(FText::FromString(Label));
+                L->SetAutoWrapText(false);
+                B->AddChild(L);
+                if (UButtonSlot* ButtonSlot = Cast<UButtonSlot>(L->Slot))
+                {
+                    ButtonSlot->SetHorizontalAlignment(HAlign_Center);
+                    ButtonSlot->SetVerticalAlignment(VAlign_Center);
+                }
+                StyleButton(B, NormalCol, HoverCol, PressCol, ButtonCornerRadius);
+                return B;
             };
 
         auto MakeButtonBox = [&](const FString& Name, UButton* Button, float Width, float Height) -> USizeBox*
@@ -150,129 +476,235 @@ TSharedRef<SWidget> UVRMenuWidget::RebuildWidget()
                 return Box;
             };
 
-        auto MakeButton = [&](const FString& Name, const TCHAR* Label, const FLinearColor& Color, int32 Size) -> UButton*
-            {
-                UButton* B = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), FName(*Name));
-                B->SetBackgroundColor(Color);
-                UTextBlock* L = MakeText(Name + TEXT("_Label"), Size, FLinearColor::White, ETextJustify::Center);
-                L->SetText(FText::FromString(Label));
-                B->AddChild(L);
-                return B;
-            };
-
-        auto AddToBox = [&](UVerticalBox* Box, UWidget* W, const FMargin& Pad, bool bFill = false)
+        auto AddToVBox = [&](UVerticalBox* Box, UWidget* W, const FMargin& Pad,
+            EHorizontalAlignment HAlign = HAlign_Fill, bool bFill = false)
             {
                 if (UVerticalBoxSlot* S = Box->AddChildToVerticalBox(W))
                 {
                     S->SetPadding(Pad);
-                    S->SetHorizontalAlignment(HAlign_Fill);
+                    S->SetHorizontalAlignment(HAlign);
                     if (bFill) S->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
                 }
             };
 
-        const FLinearColor Green(0.1f, 0.55f, 0.2f);
-        const FLinearColor Red(0.7f, 0.2f, 0.15f);
-        const FLinearColor Blue(0.15f, 0.35f, 0.65f);
-        const FLinearColor Grey(0.3f, 0.32f, 0.38f);
-        const FLinearColor Accent(1.f, 0.75f, 0.2f);
-
-        auto AddCentered = [&](UVerticalBox* Box, UWidget* W, const FMargin& Pad)
+        auto MakeSpacer = [&](const FString& Name, float Height) -> USpacer*
             {
-                if (UVerticalBoxSlot* S = Box->AddChildToVerticalBox(W))
-                {
-                    S->SetPadding(Pad);
-                    S->SetHorizontalAlignment(HAlign_Center);
-                }
+                USpacer* Sp = WidgetTree->ConstructWidget<USpacer>(USpacer::StaticClass(), FName(*Name));
+                Sp->SetSize(FVector2D(0.f, Height));
+                return Sp;
             };
 
-        auto MakeDivider = [&](const FString& Name) -> USizeBox*
+        auto MakeDivider = [&](const FString& Name, float Width) -> USizeBox*
             {
-                USizeBox* DividerBox = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), FName(*Name));
-                DividerBox->SetHeightOverride(3.f);
-                UBorder* Divider = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), FName(*(Name + TEXT("_Border"))));
-                Divider->SetBrush(FSlateColorBrush(FLinearColor(1.f, 0.75f, 0.2f, 0.6f)));
-                DividerBox->SetContent(Divider);
-                return DividerBox;
+                USizeBox* DivBox = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), FName(*(Name + TEXT("_SB"))));
+                DivBox->SetHeightOverride(DividerHeight);
+                DivBox->SetWidthOverride(Width);
+                UBorder* Div = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), FName(*(Name + TEXT("_Bd"))));
+                Div->SetBrush(FSlateRoundedBoxBrush(DividerOrange, 2.f));
+                DivBox->SetContent(Div);
+                return DivBox;
             };
 
-        // ---------------- Start / Pause screen ----------------
+        // ──────────────────────────────────────────────
+        //  OUTER PANEL: rounded dark navy
+        // ──────────────────────────────────────────────
+        UBorder* OuterBorder = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), TEXT("OuterBorder"));
+        OuterBorder->SetBrush(FSlateRoundedBoxBrush(PanelOuter, PanelCornerRadius));
+        OuterBorder->SetPadding(FMargin(PanelPadding));
+        WidgetTree->RootWidget = OuterBorder;
+
+        // Inner wrapper: slightly lighter card for layered depth
+        UBorder* InnerCard = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), TEXT("InnerCard"));
+        InnerCard->SetBrush(FSlateRoundedBoxBrush(PanelInner, CardCornerRadius));
+        InnerCard->SetPadding(FMargin(24.f, 20.f));
+        OuterBorder->SetContent(InnerCard);
+
+        UVerticalBox* Root = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("Root"));
+        InnerCard->SetContent(Root);
+
+        // ══════════════════════════════════════════════
+        //  START / PAUSE SCREEN
+        // ══════════════════════════════════════════════
         MenuBox = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("MenuBox"));
-        AddToBox(Root, MenuBox, FMargin(0.f));
+        AddToVBox(Root, MenuBox, FMargin(0.f));
 
-        TitleText = MakeText(TEXT("Title"), 42, Accent, ETextJustify::Center);
+        // --- Title with soft amber glow background ---
+        UOverlay* TitleOverlay = WidgetTree->ConstructWidget<UOverlay>(UOverlay::StaticClass(), TEXT("TitleOverlay"));
+        AddToVBox(MenuBox, TitleOverlay, FMargin(0.f, 0.f, 0.f, 4.f), HAlign_Fill);
+
+        // Glow layer sized appropriately behind title text
+        USizeBox* GlowBox = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), TEXT("TitleGlowBox"));
+        GlowBox->SetWidthOverride(640.f);
+        GlowBox->SetHeightOverride(56.f);
+
+        UBorder* TitleGlow = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), TEXT("TitleGlow"));
+        TitleGlow->SetBrush(FSlateRoundedBoxBrush(AccentGlow, 28.f));
+        GlowBox->SetContent(TitleGlow);
+
+        if (UOverlaySlot* GlowSlot = TitleOverlay->AddChildToOverlay(GlowBox))
         {
-            FSlateFontInfo Font = TitleText->GetFont();
-            Font.TypefaceFontName = FName(TEXT("Bold"));
-            TitleText->SetFont(Font);
+            GlowSlot->SetHorizontalAlignment(HAlign_Center);
+            GlowSlot->SetVerticalAlignment(VAlign_Center);
         }
-        AddToBox(MenuBox, TitleText, FMargin(0.f));
 
-        AddToBox(MenuBox, MakeDivider(TEXT("StartDivider")), FMargin(0.f, 12.f, 0.f, 18.f));
+        // Title text
+        TitleText = MakeText(TEXT("Title"), TitleFontSize, AccentOrange, ETextJustify::Center, /*bBold=*/true);
+        if (UOverlaySlot* TxtSlot = TitleOverlay->AddChildToOverlay(TitleText))
+        {
+            TxtSlot->SetHorizontalAlignment(HAlign_Center);
+            TxtSlot->SetVerticalAlignment(VAlign_Center);
+            TxtSlot->SetPadding(FMargin(0.f, 10.f));
+        }
 
-        SubText = MakeText(TEXT("Sub"), 24, FLinearColor(0.8f, 0.8f, 0.8f), ETextJustify::Center);
-        AddToBox(MenuBox, SubText, FMargin(0.f, 0.f, 0.f, 24.f));
+        // --- Accent divider ---
+        AddToVBox(MenuBox, MakeDivider(TEXT("StartDiv"), ButtonWidth * DividerWidthFraction),
+            FMargin(0.f, 10.f, 0.f, 14.f), HAlign_Center);
 
-        StartButton = MakeButton(TEXT("StartBtn"), TEXT("START"), Green, 34);
-        InstructionsButton = MakeButton(TEXT("InstructionsBtn"), TEXT("INSTRUCTIONS"), Blue, 34);
-        ResumeButton = MakeButton(TEXT("ResumeBtn"), TEXT("RESUME"), Green, 34);
-        RestartButton = MakeButton(TEXT("RestartBtn"), TEXT("RESTART"), Red, 34);
+        // --- Subtitle ---
+        SubText = MakeText(TEXT("Sub"), SubtitleFontSize, TextLightGray, ETextJustify::Center);
+        AddToVBox(MenuBox, SubText, FMargin(0.f, 0.f, 0.f, 24.f), HAlign_Center);
 
-        AddCentered(MenuBox, MakeButtonBox(TEXT("StartBtnBox"), StartButton, 620.f, 78.f), FMargin(0.f, 7.f));
-        AddCentered(MenuBox, MakeButtonBox(TEXT("InstructionsBtnBox"), InstructionsButton, 620.f, 78.f), FMargin(0.f, 7.f));
-        AddCentered(MenuBox, MakeButtonBox(TEXT("ResumeBtnBox"), ResumeButton, 620.f, 78.f), FMargin(0.f, 7.f));
-        AddCentered(MenuBox, MakeButtonBox(TEXT("RestartBtnBox"), RestartButton, 620.f, 78.f), FMargin(0.f, 7.f));
+        // --- Buttons ---
+        StartButton = MakeStyledButton(TEXT("StartBtn"), TEXT("START"), ButtonFontSize,
+            BtnPrimary, BtnPrimaryHover, BtnPrimaryPressed);
+        InstructionsButton = MakeStyledButton(TEXT("InstrBtn"), TEXT("INSTRUCTIONS"), ButtonFontSize,
+            BtnSecondary, BtnSecondaryHover, BtnSecondaryPressed, /*bBold=*/false);
+        ResumeButton = MakeStyledButton(TEXT("ResumeBtn"), TEXT("RESUME"), ButtonFontSize,
+            BtnPrimary, BtnPrimaryHover, BtnPrimaryPressed);
+        RestartButton = MakeStyledButton(TEXT("RestartBtn"), TEXT("RESTART"), ButtonFontSize,
+            BtnDanger, BtnDangerHover, BtnDangerPressed);
+
+        AddToVBox(MenuBox, MakeButtonBox(TEXT("StartBB"), StartButton, ButtonWidth, ButtonHeight),
+            FMargin(0.f, 6.f), HAlign_Center);
+        AddToVBox(MenuBox, MakeButtonBox(TEXT("InstrBB"), InstructionsButton, ButtonWidth, ButtonHeight),
+            FMargin(0.f, 6.f), HAlign_Center);
+        AddToVBox(MenuBox, MakeButtonBox(TEXT("ResumeBB"), ResumeButton, ButtonWidth, ButtonHeight),
+            FMargin(0.f, 6.f), HAlign_Center);
+        AddToVBox(MenuBox, MakeButtonBox(TEXT("RestartBB"), RestartButton, ButtonWidth, ButtonHeight),
+            FMargin(0.f, 6.f), HAlign_Center);
 
         StartButton->OnClicked.AddDynamic(this, &UVRMenuWidget::HandleStart);
         InstructionsButton->OnClicked.AddDynamic(this, &UVRMenuWidget::HandleInstructions);
         ResumeButton->OnClicked.AddDynamic(this, &UVRMenuWidget::HandleResume);
         RestartButton->OnClicked.AddDynamic(this, &UVRMenuWidget::HandleRestart);
 
-        // ---------------- Instructions screen ----------------
+        // ══════════════════════════════════════════════
+        //  INSTRUCTIONS SCREEN
+        // ══════════════════════════════════════════════
         InstructionBox = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("InstructionBox"));
-        AddToBox(Root, InstructionBox, FMargin(0.f), true);
+        AddToVBox(Root, InstructionBox, FMargin(0.f), HAlign_Fill, /*bFill=*/true);
 
-        PageTitleText = MakeText(TEXT("PageTitle"), 38, Accent, ETextJustify::Center);
+        // --- Title row: badge + page title ---
+        UHorizontalBox* TitleRow = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), TEXT("PageTitleRow"));
+        AddToVBox(InstructionBox, TitleRow, FMargin(0.f, 0.f, 0.f, 2.f), HAlign_Center);
+
+        // Page number badge (circular amber badge)
+        PageBadgeBorder = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), TEXT("PageBadge"));
+        PageBadgeBorder->SetBrush(FSlateRoundedBoxBrush(BadgeBg, BadgeCornerRadius));
+        PageBadgeBorder->SetPadding(FMargin(0.f));
+
+        PageBadgeText = MakeText(TEXT("PageBadgeNum"), BadgeFontSize, AccentOrange, ETextJustify::Center, /*bBold=*/true);
+        PageBadgeText->SetAutoWrapText(false);
+        PageBadgeBorder->SetContent(PageBadgeText);
+
+        if (UBorderSlot* BadgeSlot = Cast<UBorderSlot>(PageBadgeBorder->GetContentSlot()))
         {
-            FSlateFontInfo Font = PageTitleText->GetFont();
-            Font.TypefaceFontName = FName(TEXT("Bold"));
-            PageTitleText->SetFont(Font);
+            BadgeSlot->SetHorizontalAlignment(HAlign_Center);
+            BadgeSlot->SetVerticalAlignment(VAlign_Center);
         }
-        AddToBox(InstructionBox, PageTitleText, FMargin(0.f));
 
-        PageNumberText = MakeText(TEXT("PageNumber"), 18, FLinearColor(0.6f, 0.6f, 0.65f), ETextJustify::Center);
-        AddToBox(InstructionBox, PageNumberText, FMargin(0.f, 6.f, 0.f, 14.f));
+        USizeBox* BadgeBox = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), TEXT("BadgeBox"));
+        BadgeBox->SetWidthOverride(BadgeSize);
+        BadgeBox->SetHeightOverride(BadgeSize);
+        BadgeBox->SetContent(PageBadgeBorder);
 
-        PageBodyText = MakeText(TEXT("PageBody"), 22, FLinearColor(0.92f, 0.92f, 0.92f), ETextJustify::Left);
-        PageBodyText->SetWrapTextAt(860.f);
-        PageBodyText->SetLineHeightPercentage(1.2f);
+        if (UHorizontalBoxSlot* BS = TitleRow->AddChildToHorizontalBox(BadgeBox))
+        {
+            BS->SetPadding(FMargin(0.f, 0.f, 12.f, 0.f));
+            BS->SetVerticalAlignment(VAlign_Center);
+        }
 
+        // Page title text
+        PageTitleText = MakeText(TEXT("PageTitle"), PageTitleFontSize, AccentAmber, ETextJustify::Left, /*bBold=*/true);
+        PageTitleText->SetAutoWrapText(false);
+        if (UHorizontalBoxSlot* TS = TitleRow->AddChildToHorizontalBox(PageTitleText))
+        {
+            TS->SetVerticalAlignment(VAlign_Center);
+        }
+
+        // --- Dot progress indicator ---
+        DotRow = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), TEXT("DotRow"));
+        AddToVBox(InstructionBox, DotRow, FMargin(0.f, 8.f, 0.f, 6.f), HAlign_Center);
+        BuildPageDots(DotRow);
+
+        // --- Page number text below dots ---
+        PageNumberText = MakeText(TEXT("PageNumber"), PageNumFontSize, TextMuted, ETextJustify::Center);
+        AddToVBox(InstructionBox, PageNumberText, FMargin(0.f, 0.f, 0.f, 10.f), HAlign_Center);
+
+        // --- Body card ---
         UBorder* BodyCard = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), TEXT("BodyCard"));
-        BodyCard->SetBrush(FSlateRoundedBoxBrush(FLinearColor(0.08f, 0.11f, 0.18f, 1.0f), 16.f));
-        BodyCard->SetPadding(FMargin(24.f));
+        BodyCard->SetBrush(FSlateRoundedBoxBrush(CardBody, CardCornerRadius));
+        BodyCard->SetPadding(FMargin(CardPadding));
         BodyCard->SetClipping(EWidgetClipping::ClipToBounds);
-        BodyCard->SetContent(PageBodyText);
+
+        // Overlay inside card: normal body text OR dedicated controls chip rows
+        UOverlay* CardOverlay = WidgetTree->ConstructWidget<UOverlay>(UOverlay::StaticClass(), TEXT("CardOverlay"));
+        BodyCard->SetContent(CardOverlay);
+
+        // 1. Normal body text (scrollable fallback)
+        PageBodyText = MakeText(TEXT("PageBody"), BodyFontSize, TextWhite, ETextJustify::Left);
+        PageBodyText->SetWrapTextAt(BodyCardWidth - (CardPadding * 2.f) - 20.f);
+        PageBodyText->SetLineHeightPercentage(1.25f);
+
+        BodyScroll = WidgetTree->ConstructWidget<UScrollBox>(UScrollBox::StaticClass(), TEXT("BodyScroll"));
+        BodyScroll->AddChild(PageBodyText);
+        BodyScroll->SetScrollBarVisibility(ESlateVisibility::Collapsed);
+        if (UOverlaySlot* ScrollSlot = CardOverlay->AddChildToOverlay(BodyScroll))
+        {
+            ScrollSlot->SetHorizontalAlignment(HAlign_Fill);
+            ScrollSlot->SetVerticalAlignment(VAlign_Fill);
+        }
+
+        // 2. Controls chip list
+        ControlsBox = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("ControlsBox"));
+        ControlsBox->SetVisibility(ESlateVisibility::Collapsed);
+        BuildControlsRows(ControlsBox);
+        if (UOverlaySlot* CtrlSlot = CardOverlay->AddChildToOverlay(ControlsBox))
+        {
+            CtrlSlot->SetHorizontalAlignment(HAlign_Fill);
+            CtrlSlot->SetVerticalAlignment(VAlign_Fill);
+        }
+
         USizeBox* BodyCardBox = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), TEXT("BodyCardBox"));
-        BodyCardBox->SetWidthOverride(920.f);
-        BodyCardBox->SetHeightOverride(400.f);
+        BodyCardBox->SetWidthOverride(BodyCardWidth);
+        BodyCardBox->SetHeightOverride(BodyCardHeight);
         BodyCardBox->SetContent(BodyCard);
-        AddToBox(InstructionBox, BodyCardBox, FMargin(0.f));
+        AddToVBox(InstructionBox, BodyCardBox, FMargin(0.f), HAlign_Center, /*bFill=*/false);
+
+        // --- Navigation buttons ---
+        AddToVBox(InstructionBox, MakeSpacer(TEXT("NavSpacer"), 10.f), FMargin(0.f));
 
         UHorizontalBox* Nav = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), TEXT("Nav"));
-        AddToBox(InstructionBox, Nav, FMargin(0.f, 14.f, 0.f, 0.f));
+        AddToVBox(InstructionBox, Nav, FMargin(0.f, 4.f, 0.f, 0.f), HAlign_Fill);
 
-        PrevButton = MakeButton(TEXT("PrevBtn"), TEXT("< PREV"), Grey, 26);
-        BackButton = MakeButton(TEXT("BackBtn"), TEXT("BACK"), Red, 26);
-        NextButton = MakeButton(TEXT("NextBtn"), TEXT("NEXT >"), Grey, 26);
+        PrevButton = MakeStyledButton(TEXT("PrevBtn"), TEXT("<  PREV"), NavButtonFontSize,
+            BtnNav, BtnNavHover, BtnNavPressed, /*bBold=*/false);
+        BackButton = MakeStyledButton(TEXT("BackBtn"), TEXT("BACK"), NavButtonFontSize,
+            BtnDanger, BtnDangerHover, BtnDangerPressed);
+        NextButton = MakeStyledButton(TEXT("NextBtn"), TEXT("NEXT  >"), NavButtonFontSize,
+            BtnNav, BtnNavHover, BtnNavPressed, /*bBold=*/false);
 
         for (UButton* B : { PrevButton, BackButton, NextButton })
         {
-            USizeBox* ButtonBox = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), FName(*(B->GetName() + TEXT("Box"))));
-            ButtonBox->SetHeightOverride(60.f);
-            ButtonBox->SetContent(B);
-            if (UHorizontalBoxSlot* S = Nav->AddChildToHorizontalBox(ButtonBox))
+            USizeBox* NavBtnBox = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(),
+                FName(*(B->GetName() + TEXT("Box"))));
+            NavBtnBox->SetHeightOverride(NavButtonHeight);
+            NavBtnBox->SetContent(B);
+            if (UHorizontalBoxSlot* S = Nav->AddChildToHorizontalBox(NavBtnBox))
             {
                 S->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
-                S->SetPadding(FMargin(6.f, 0.f));
+                S->SetPadding(FMargin(5.f, 0.f));
+                S->SetVerticalAlignment(VAlign_Fill);
             }
         }
 
@@ -286,9 +718,9 @@ TSharedRef<SWidget> UVRMenuWidget::RebuildWidget()
     return Result;
 }
 
-// ----------------------------------------------------------------
-// State
-// ----------------------------------------------------------------
+// ════════════════════════════════════════════════════════════════════
+//  STATE
+// ════════════════════════════════════════════════════════════════════
 
 void UVRMenuWidget::SetMode(EVRMenuMode NewMode)
 {
@@ -302,6 +734,11 @@ void UVRMenuWidget::SetInstructionPages(const TArray<FVRInstructionPage>& InPage
 {
     Pages = InPages;
     CurrentPage = 0;
+    if (DotRow)
+    {
+        DotRow->ClearChildren();
+        BuildPageDots(DotRow);
+    }
     if (Mode == EVRMenuMode::Instructions)
         RefreshPage();
 }
@@ -328,10 +765,21 @@ void UVRMenuWidget::ApplyMode()
     const ESlateVisibility StartVis = bStart ? ESlateVisibility::Visible : ESlateVisibility::Collapsed;
     const ESlateVisibility PauseVis = bStart ? ESlateVisibility::Collapsed : ESlateVisibility::Visible;
 
-    if (StartButton)        StartButton->SetVisibility(StartVis);
-    if (InstructionsButton) InstructionsButton->SetVisibility(StartVis);
-    if (ResumeButton)       ResumeButton->SetVisibility(PauseVis);
-    if (RestartButton)      RestartButton->SetVisibility(PauseVis);
+    // Helper to collapse both the button and its wrapping SizeBox so hidden buttons leave no empty gap
+    auto SetButtonBoxVisibility = [](UButton* Btn, ESlateVisibility Vis)
+    {
+        if (!Btn) return;
+        Btn->SetVisibility(Vis);
+        if (UWidget* Parent = Cast<UWidget>(Btn->GetParent()))
+        {
+            Parent->SetVisibility(Vis);
+        }
+    };
+
+    SetButtonBoxVisibility(StartButton, StartVis);
+    SetButtonBoxVisibility(InstructionsButton, StartVis);
+    SetButtonBoxVisibility(ResumeButton, PauseVis);
+    SetButtonBoxVisibility(RestartButton, PauseVis);
 }
 
 void UVRMenuWidget::RefreshPage()
@@ -344,22 +792,48 @@ void UVRMenuWidget::RefreshPage()
 
     if (PageTitleText)  PageTitleText->SetText(P.Title);
     if (PageBodyText)   PageBodyText->SetText(P.Body);
-    if (PageNumberText) PageNumberText->SetText(FText::FromString(FString::Printf(TEXT("Page %d of %d"), CurrentPage + 1, Pages.Num())));
+    if (PageNumberText) PageNumberText->SetText(FText::FromString(
+        FString::Printf(TEXT("Page %d of %d"), CurrentPage + 1, Pages.Num())));
 
+    // Update badge number
+    if (PageBadgeText)
+        PageBadgeText->SetText(FText::AsNumber(CurrentPage + 1));
+
+    // Keep body font size consistent
     if (PageBodyText)
     {
         FSlateFontInfo Font = PageBodyText->GetFont();
-        Font.Size = 22;
+        Font.Size = VRMenuSizes::BodyFontSize;
         PageBodyText->SetFont(Font);
     }
+
+    // Toggle between key-cap chip layout (CONTROLS page) and text card
+    const bool bIsControls = P.Title.ToString().Equals(TEXT("CONTROLS"), ESearchCase::IgnoreCase);
+
+    if (ControlsBox)
+    {
+        ControlsBox->SetVisibility(bIsControls ? ESlateVisibility::SelfHitTestInvisible : ESlateVisibility::Collapsed);
+        if (bIsControls)
+        {
+            UpdateControlsPage(P.Body);
+        }
+    }
+
+    if (BodyScroll)
+    {
+        BodyScroll->SetVisibility(bIsControls ? ESlateVisibility::Collapsed : ESlateVisibility::SelfHitTestInvisible);
+    }
+
+    // Update dot indicators
+    UpdatePageDots();
 
     if (PrevButton) PrevButton->SetVisibility(CurrentPage > 0 ? ESlateVisibility::Visible : ESlateVisibility::Hidden);
     if (NextButton) NextButton->SetVisibility(CurrentPage < Pages.Num() - 1 ? ESlateVisibility::Visible : ESlateVisibility::Hidden);
 }
 
-// ----------------------------------------------------------------
-// Buttons
-// ----------------------------------------------------------------
+// ════════════════════════════════════════════════════════════════════
+//  BUTTON HANDLERS (unchanged)
+// ════════════════════════════════════════════════════════════════════
 
 void UVRMenuWidget::HandleStart() { OnStartClicked.Broadcast(); }
 void UVRMenuWidget::HandleResume() { OnResumeClicked.Broadcast(); }

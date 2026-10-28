@@ -67,12 +67,24 @@ private:
     void ApplyMode();
     void RefreshPage();
 
+    /** Apply a consistent rounded button style with Normal / Hovered / Pressed states. */
+    void StyleButton(class UButton* Btn, const FLinearColor& Normal, const FLinearColor& Hovered, const FLinearColor& Pressed, float Radius = 12.f);
+
+    /** Build the page-dot progress indicator. */
+    void BuildPageDots(class UHorizontalBox* Container);
+    void UpdatePageDots();
+
+    /** Build key-cap rows for the CONTROLS page. */
+    void BuildControlsRows(class UVerticalBox* Container);
+    void UpdateControlsPage(const FText& BodyText);
+
     EVRMenuMode Mode = EVRMenuMode::Start;
     EVRMenuMode PreviousMode = EVRMenuMode::Start;
     int32 CurrentPage = 0;
 
     UPROPERTY() TArray<FVRInstructionPage> Pages;
 
+    // ---------- Start / Pause screen ----------
     UPROPERTY() class UVerticalBox* MenuBox = nullptr;
     UPROPERTY() class UVerticalBox* InstructionBox = nullptr;
 
@@ -83,10 +95,24 @@ private:
     UPROPERTY() class UButton* ResumeButton = nullptr;
     UPROPERTY() class UButton* RestartButton = nullptr;
 
+    // ---------- Instructions screen ----------
     UPROPERTY() class UTextBlock* PageTitleText = nullptr;
+    UPROPERTY() class UTextBlock* PageBadgeText = nullptr;
+    UPROPERTY() class UBorder* PageBadgeBorder = nullptr;
     UPROPERTY() class UTextBlock* PageBodyText = nullptr;
+    UPROPERTY() class UScrollBox* BodyScroll = nullptr;
     UPROPERTY() class UTextBlock* PageNumberText = nullptr;
     UPROPERTY() class UButton* PrevButton = nullptr;
     UPROPERTY() class UButton* NextButton = nullptr;
     UPROPERTY() class UButton* BackButton = nullptr;
+
+    // Page-dot indicators
+    UPROPERTY() class UHorizontalBox* DotRow = nullptr;
+    UPROPERTY() TArray<class UBorder*> PageDots;
+
+    // CONTROLS key-cap rows
+    UPROPERTY() class UVerticalBox* ControlsBox = nullptr;
+    UPROPERTY() TArray<class UTextBlock*> ControlKeyTexts;
+    UPROPERTY() TArray<class UTextBlock*> ControlDescTexts;
+    UPROPERTY() TArray<class UHorizontalBox*> ControlRowBoxes;
 };

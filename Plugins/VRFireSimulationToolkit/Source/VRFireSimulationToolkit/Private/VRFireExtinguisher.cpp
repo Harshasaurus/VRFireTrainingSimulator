@@ -8,6 +8,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "Camera/PlayerCameraManager.h"
 #include "Particles/ParticleSystemComponent.h"
+#include "DrawDebugHelpers.h"
 
 AVRFireExtinguisher::AVRFireExtinguisher()
 {
@@ -26,6 +27,13 @@ AVRFireExtinguisher::AVRFireExtinguisher()
     AimWidgetComp->SetRelativeScale3D(FVector(0.15f));
     AimWidgetComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
     AimWidgetComp->SetVisibility(false);
+
+    FireAimHeightOffset = 60.0f;
+    PitchToleranceAngle = 30.0f;
+    PitchFalloffAngle = 60.0f;
+    bIgnorePitch = false;
+    FirePitchBias = 0.0f;
+    bDrawDebugAim = true;
 }
 
 void AVRFireExtinguisher::BeginPlay()
@@ -132,6 +140,10 @@ void AVRFireExtinguisher::SprayTick(float DeltaTime)
 
             BestEffectivenessThisTick = FMath::Max(BestEffectivenessThisTick, AimEffectiveness);
 
+            if (bDrawDebugAim)
+            {
+                LogAimDebug(Fire->GetActorLocation(), AimEffectiveness);
+            }
         }
     }
 
@@ -230,7 +242,7 @@ void AVRFireExtinguisher::UpdateAimWidget()
             {
                 Hint = YawSigned > 0.0f ? TEXT("Turn RIGHT") : TEXT("Turn LEFT");
             }
-            else if (PitchError > AimToleranceAngle)
+            else if (!bIgnorePitch && PitchError > PitchToleranceAngle)
             {
                 Hint = Pitch < GetTargetPitch(FireLocation) ? TEXT("Aim DOWN") : TEXT("Aim UP");
             }
@@ -269,6 +281,7 @@ void AVRFireExtinguisher::UpdateAimWidget()
             (CameraManager->GetCameraLocation() - AimWidgetComp->GetComponentLocation()).Rotation());
     }
 }
+
 void AVRFireExtinguisher::UpdateSprayColor(float Effectiveness, bool bFireInRange)
 {
     if (!SprayParticle) return;
@@ -300,7 +313,8 @@ float AVRFireExtinguisher::GetTargetPitch(const FVector& FireLocation) const
         return TargetPitchAngle;
     }
 
-    const FVector Dir = (FireLocation - GetActorLocation()).GetSafeNormal();
+    const FVector TargetLocation = FireLocation + FVector(0.0f, 0.0f, FireAimHeightOffset);
+    const FVector Dir = (TargetLocation - GetActorLocation()).GetSafeNormal();
     return FMath::RadiansToDegrees(
         FMath::Asin(FMath::Clamp(-Dir.Z, -1.0f, 1.0f))) + FirePitchBias;
 }
@@ -325,6 +339,7 @@ void AVRFireExtinguisher::GetAimErrors(const FVector& FireLocation, float& OutPi
         FMath::Acos(FMath::Clamp(FVector::DotProduct(F2D, T2D), -1.0f, 1.0f)));
     OutYawSigned = FVector::CrossProduct(F2D, T2D).Z >= 0.0f ? OutYawError : -OutYawError;
 }
+
 float AVRFireExtinguisher::GetAimEffectiveness(const FVector& FireLocation) const
 {
     if (bUsePitchAim)
@@ -335,25 +350,32 @@ float AVRFireExtinguisher::GetAimEffectiveness(const FVector& FireLocation) cons
         float YawSigned = 0.0f;
         GetAimErrors(FireLocation, Pitch, PitchError, YawError, YawSigned);
 
-        const auto Fade = [this](float A) -> float
+        const auto ComputeFade = [](float Error, float Tolerance, float Falloff) -> float
+        {
+            if (Error <= Tolerance)
             {
-                if (A <= AimToleranceAngle)
-                {
-                    return 1.0f;
-                }
-                if (A >= AimFalloffAngle)
-                {
-                    return 0.0f;
-                }
-                return 1.0f - (A - AimToleranceAngle) / (AimFalloffAngle - AimToleranceAngle);
-            };
+                return 1.0f;
+            }
+            if (Error >= Falloff)
+            {
+                return 0.0f;
+            }
+            const float Range = Falloff - Tolerance;
+            if (Range <= 0.0f)
+            {
+                return 0.0f;
+            }
+            return 1.0f - (Error - Tolerance) / Range;
+        };
 
-        return FMath::Min(Fade(PitchError), Fade(YawError));
+        const float YawFade = ComputeFade(YawError, AimToleranceAngle, AimFalloffAngle);
+        const float PitchFade = bIgnorePitch ? 1.0f : ComputeFade(PitchError, PitchToleranceAngle, PitchFalloffAngle);
+
+        return FMath::Min(PitchFade, YawFade);
     }
+
     // Direction the nozzle is actually pointing.
-    // Assumes the extinguisher mesh's forward (+X) axis points out the
-    // nozzle ? if your mesh's forward axis is different, rotate the mesh
-    // in the editor or adjust this to use a dedicated nozzle socket instead.
+    // Assumes the extinguisher mesh's forward (+X) axis points out the nozzle.
     FVector NozzleForward = GetActorForwardVector();
 
     // Direction from the nozzle to the fire
@@ -365,18 +387,68 @@ float AVRFireExtinguisher::GetAimEffectiveness(const FVector& FireLocation) cons
 
     if (AngleDegrees <= AimToleranceAngle)
     {
-        return 1.0f; // dead on target ? full effectiveness
+        return 1.0f; // dead on target - full effectiveness
     }
     else if (AngleDegrees >= AimFalloffAngle)
     {
-        return 0.0f; // too far off ? no effect at all
+        return 0.0f; // too far off - no effect at all
     }
     else
     {
         // Linear fade between tolerance and falloff angles
         float Range = AimFalloffAngle - AimToleranceAngle;
+        if (Range <= 0.0f)
+        {
+            return 0.0f;
+        }
         float Progress = (AngleDegrees - AimToleranceAngle) / Range;
         return 1.0f - Progress;
     }
 }
 
+void AVRFireExtinguisher::LogAimDebug(const FVector& FireLocation, float Effectiveness) const
+{
+    float Pitch = 0.0f;
+    float PitchError = 0.0f;
+    float YawError = 0.0f;
+    float YawSigned = 0.0f;
+    GetAimErrors(FireLocation, Pitch, PitchError, YawError, YawSigned);
+
+    const float TargetPitch = GetTargetPitch(FireLocation);
+
+    const auto ComputeFade = [](float Error, float Tolerance, float Falloff) -> float
+    {
+        if (Error <= Tolerance) return 1.0f;
+        if (Error >= Falloff) return 0.0f;
+        const float Range = Falloff - Tolerance;
+        return Range > 0.0f ? (1.0f - (Error - Tolerance) / Range) : 0.0f;
+    };
+
+    const float PitchFade = bIgnorePitch ? 1.0f : ComputeFade(PitchError, PitchToleranceAngle, PitchFalloffAngle);
+    const float YawFade = ComputeFade(YawError, AimToleranceAngle, AimFalloffAngle);
+
+    const FVector NozzleForward = GetActorForwardVector();
+    const FVector TargetLocation = FireLocation + FVector(0.0f, 0.0f, FireAimHeightOffset);
+    const FVector DirectionToTarget = (TargetLocation - GetActorLocation()).GetSafeNormal();
+    const float Dot = FMath::Clamp(FVector::DotProduct(NozzleForward, DirectionToTarget), -1.0f, 1.0f);
+    const float AngleDeg = FMath::RadiansToDegrees(FMath::Acos(Dot));
+    const float Distance = FVector::Dist(GetActorLocation(), FireLocation);
+
+    // Existing AIM DEBUG format augmented with height offset, pitch tolerance, and pitch fade
+    UE_LOG(LogTemp, Warning,
+        TEXT("AIM DEBUG | Angle: %.1f deg | Effectiveness: %.2f | NozzleFwd: %s | ToFire: %s | HeightOffset: %.1f cm | PitchTol: %.1f deg | PitchFade: %.2f"),
+        AngleDeg, Effectiveness, *NozzleForward.ToString(), *DirectionToTarget.ToString(),
+        FireAimHeightOffset, PitchToleranceAngle, PitchFade);
+
+    // Extended AIM2 diagnostic line
+    UE_LOG(LogTemp, Warning,
+        TEXT("AIM2 | Dist: %.1f cm | FwdZ: %.3f | Pitch: %.1f deg | TargetPitch: %.1f deg | PitchError: %.1f deg | PitchTol: %.1f deg | PitchFade: %.2f | YawError: %.1f deg | YawTol: %.1f deg | YawFade: %.2f | HeightOffset: %.1f cm | IgnorePitch: %d | Effectiveness: %.2f"),
+        Distance, NozzleForward.Z, Pitch, TargetPitch, PitchError, PitchToleranceAngle, PitchFade,
+        YawError, AimToleranceAngle, YawFade, FireAimHeightOffset, bIgnorePitch ? 1 : 0, Effectiveness);
+
+    if (UWorld* World = GetWorld())
+    {
+        const FColor LineColor = FColor::MakeRedToGreenColorFromScalar(Effectiveness);
+        DrawDebugLine(World, GetActorLocation(), TargetLocation, LineColor, false, -1.f, 0, 2.f);
+    }
+}
