@@ -4,11 +4,28 @@ DerivedDataCache/
 Intermediate/
 Saved/
 
-# Visual Studio workspace files
+# Visual Studio / Rider / VSCode workspace files
 .vs/
+.idea/
+.vscode/
 *.sln.DotSettings.user
+*.suo
+*.user
+*.userosache
+*.sln.docstates
+*.VC.db
+*.VC.opendb
 
 # Plugin generated files
 Plugins/*/Binaries/
 Plugins/*/Intermediate/
 Plugins/*/Saved/
+Plugins/*/DerivedDataCache/
+
+# Crash reports and logs
+*.log
+
+# Temp and backup files
+*.tmp
+*.bak
+*.orig
